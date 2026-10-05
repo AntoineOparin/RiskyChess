@@ -72,17 +72,16 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
   const { current: revealing, done, settledOutcome, lastShown } = useTurnPresenter(history, outcome);
   const displayFen = revealing ? revealing.fenBefore : fen;
   const canAct = myTurn && !revealing && !outcome;
-  const sel = useMoveSelection(displayFen, canAct && !submitting);
+  // Mode inputs for the next submission; every new position starts clean.
+  const extras = useModeExtras((s) => s.extras);
+  const setExtras = useModeExtras((s) => s.set);
+  useEffect(() => useModeExtras.getState().reset(), [displayFen]);
+  const sel = useMoveSelection(displayFen, canAct && !submitting, !!extras.allIn);
   // From the displayed position, so the count updates when a reveal lands, never before.
   const material = useMemo(() => materialSummary(displayFen), [displayFen]);
   const oppColor = other(myColor);
   const rules = table?.rules ?? CLASSIC_RULES;
   const [rulesOpen, setRulesOpen] = useState(false);
-
-  // Mode inputs for the next submission; every new position starts clean.
-  const extras = useModeExtras((s) => s.extras);
-  const setExtras = useModeExtras((s) => s.set);
-  useEffect(() => useModeExtras.getState().reset(), [displayFen]);
 
   // Chips as of what has been revealed: turns still queued for a reveal are not counted yet.
   const shownWallet = useMemo(() => {
@@ -169,7 +168,13 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
 
   // Memoized so unrelated re-renders (store updates mid-reveal, banners) don't
   // hand the memoized Board / BoardOverlay fresh objects.
-  const lastMove = useMemo(() => marker(lastShown?.executed), [lastShown]);
+  const lastBust = lastShown?.effects?.some((e) => e.kind === 'all_in' && !e.won) ?? false;
+  // A busted All-In moved nothing: mark only the square the piece left.
+  const lastMove = useMemo(
+    () => (lastShown && lastBust ? { from: lastShown.executed.from, to: lastShown.executed.from } : marker(lastShown?.executed)),
+    [lastShown, lastBust],
+  );
+  const bonusPly = !!lastShown?.effects?.some((e) => e.kind === 'all_in' && e.bonusPly && e.color === myColor);
   // The candidate the coin rejected last turn, left on the board as a faint arrow.
   const ghost = useMemo(() => {
     if (!lastShown?.coin || !lastShown.moveB) return null;
@@ -178,8 +183,8 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
     return { slot, move: { from: move.from, to: move.to } };
   }, [lastShown]);
   const slotMarkers = useMemo(
-    () => (canAct ? { A: marker(sel.slots.A), B: marker(sel.slots.B) } : {}),
-    [canAct, sel.slots],
+    () => (canAct ? { A: marker(sel.slots.A), B: extras.allIn ? null : marker(sel.slots.B) } : {}),
+    [canAct, sel.slots, extras.allIn],
   );
 
   const status = (() => {
@@ -187,7 +192,8 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
     if (settledOutcome) return describeOutcome(settledOutcome, myColor);
     if (banner) return banner;
     if (submitting) return 'Locked in';
-    if (myTurn) return sel.forced ? 'Your move (forced)' : 'Your move: choose two candidates';
+    if (myTurn && bonusPly) return 'Bonus move: choose two candidates';
+    if (myTurn) return sel.forced ? 'Your move (forced)' : extras.allIn ? 'All-In: one capture, one coin' : 'Your move: choose two candidates';
     return `${names.opponent} is choosing…`;
   })();
 
@@ -268,6 +274,8 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
           onArm={sel.arm}
           onClear={sel.clear}
           onSubmit={() => sel.submission && onSubmit(sel.submission.moveA, sel.submission.moveB, cleanExtras(extras))}
+          singleSlot={!!extras.allIn}
+          submitLabel={extras.allIn && sel.slots.A ? `ALL IN: ${sel.slots.A.san}` : null}
           badge={(slot) =>
             badgeModes.length ? (
               badgeModes.map(([id, ui]) => {
@@ -283,7 +291,9 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
       {lastShown && !lastShown.forced && (
         <View style={styles.lastRow}>
           <Text style={styles.lastTurn}>
-            Last toss: {lastShown.moveA.san} vs {lastShown.moveB?.san ?? 'All-In'} → {lastShown.coin?.chosen} ({lastShown.executed.san})
+            {lastShown.moveB
+              ? `Last toss: ${lastShown.moveA.san} vs ${lastShown.moveB.san} → ${lastShown.coin?.chosen} (${lastShown.executed.san})`
+              : `Last toss: ALL IN ${lastShown.moveA.san} → ${lastBust ? 'lost' : 'won'}`}
             {lastShown.odds && lastShown.odds.A !== 5000 ? ` at ${Math.round(lastShown.odds.A / 100)}/${100 - Math.round(lastShown.odds.A / 100)}` : ''}
           </Text>
           <FairBadge result={lastShown} onPress={onOpenFairness} />

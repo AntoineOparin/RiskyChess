@@ -45,7 +45,11 @@ function tick() {
  */
 export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
   const reduceMotion = useReducedMotion();
-  const tossed = !result.forced && result.moveB !== null;
+  const tossed = result.coin !== null;
+  /** An All-In: one move on a win/bust coin. */
+  const allIn = tossed && result.moveB === null;
+  /** A busted All-In: nothing moves, the capturing piece fades off its square. */
+  const bust = result.effects?.some((e) => e.kind === 'all_in' && !e.won) ?? false;
   const winner = result.coin?.chosen === 'B' ? 1 : 0;
   const endAngle = 360 * COIN_TURNS + winner * 180;
 
@@ -136,12 +140,12 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
   const from = squareOrigin(executed.from, orientation, cell);
   const to = squareOrigin(executed.to, orientation, cell);
   const pieceStyle = useAnimatedStyle(() => ({
-    opacity: slide.value > 0 ? 1 : 0,
+    opacity: !bust && slide.value > 0 ? 1 : 0,
     transform: [{ translateX: from.x + (to.x - from.x) * slide.value }, { translateY: from.y + (to.y - from.y) * slide.value }],
   }));
   // The grid still shows the old position: cover the moving piece's origin once
   // it lifts off, and fade out a captured piece as the mover arrives.
-  const fromCover = useAnimatedStyle(() => ({ opacity: slide.value > 0 ? 1 : 0 }));
+  const fromCover = useAnimatedStyle(() => ({ opacity: bust ? slide.value : slide.value > 0 ? 1 : 0 }));
   const toCover = useAnimatedStyle(() => ({ opacity: interpolate(slide.value, [0.7, 1], [0, 1], 'clamp') }));
   const squareBg = (light: boolean) => ({ backgroundColor: light ? colors.lightSquare : colors.darkSquare });
 
@@ -159,7 +163,7 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
         <MoveArrow from={result.moveB.from} to={result.moveB.to} slot="B" orientation={orientation} cell={cell} offset={offsets.B} />
       )}
       <Animated.View style={[styles.cell, { width: cell, height: cell, left: from.x, top: from.y }, squareBg(isLightSquare(executed.from)), fromCover]} />
-      {executed.captured && (
+      {executed.captured && !bust && (
         <Animated.View style={[styles.cell, { width: cell, height: cell, left: to.x, top: to.y }, squareBg(isLightSquare(executed.to)), toCover]} />
       )}
       <Animated.View style={[styles.cell, { width: cell, height: cell }, pieceStyle]}>
@@ -178,7 +182,7 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
                 ]}
               >
                 <Text allowFontScaling={false} style={[styles.letter, { fontSize: coin * 0.48 }]}>
-                  {slot}
+                  {allIn ? (slot === 'A' ? '✓' : '✕') : slot}
                 </Text>
               </Animated.View>
             ))}

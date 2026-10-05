@@ -18,7 +18,7 @@ export interface SlotEvent {
  * Tapping a chip arms it so the next pick replaces it. Both candidates come
  * from the same position; nothing is played until the toss.
  */
-export function useMoveSelection(fen: string, enabled: boolean) {
+export function useMoveSelection(fen: string, enabled: boolean, single = false) {
   const legal = useMemo(() => legalMoves(fen), [fen]);
   const forced = legal.length === 1;
   const [from, setFrom] = useState<Square | null>(null);
@@ -37,15 +37,15 @@ export function useMoveSelection(fen: string, enabled: boolean) {
     setSlots(only ? { A: toResolved(only), B: null } : EMPTY);
   }, [legal]);
 
-  /** Where the next pick goes. null only when both slots are full and none is armed. */
-  const armed: MoveSlot | null = armedOverride ?? (!slots.A ? 'A' : !slots.B ? 'B' : null);
+  /** Where the next pick goes. null only when both slots are full and none is armed. A single declaration only uses A. */
+  const armed: MoveSlot | null = single ? 'A' : (armedOverride ?? (!slots.A ? 'A' : !slots.B ? 'B' : null));
 
   const assign = useCallback(
     (m: ResolvedMove) => {
       // With both slots full and nothing armed, a pick replaces B (and B visibly pops).
       const slot = armed ?? 'B';
       const other = slot === 'A' ? slots.B : slots.A;
-      if (other?.lan === m.lan) {
+      if (!single && other?.lan === m.lan) {
         setRejected((r) => ({ slot: slot === 'A' ? 'B' : 'A', n: (r?.n ?? 0) + 1 }));
         haptics.warning();
         return;
@@ -56,7 +56,7 @@ export function useMoveSelection(fen: string, enabled: boolean) {
       playSfx(slot === 'A' ? 'pick_a' : 'pick_b');
       haptics.selection();
     },
-    [armed, slots],
+    [armed, slots, single],
   );
 
   const onSquarePress = useCallback(
@@ -112,8 +112,14 @@ export function useMoveSelection(fen: string, enabled: boolean) {
   }, [armed, slots, targets, fromMoves, from]);
 
   const strip = (m: ResolvedMove): MoveInput => ({ from: m.from, to: m.to, ...(m.promotion ? { promotion: m.promotion } : {}) });
-  const submission =
-    slots.A && (forced || slots.B) ? { moveA: strip(slots.A), moveB: slots.B ? strip(slots.B) : null } : null;
+  // A single declaration (All-In) sends Move A alone; otherwise a pair, or the forced move.
+  const submission = !slots.A
+    ? null
+    : single
+      ? { moveA: strip(slots.A), moveB: null }
+      : forced || slots.B
+        ? { moveA: strip(slots.A), moveB: slots.B ? strip(slots.B) : null }
+        : null;
 
   return {
     from,

@@ -53,6 +53,8 @@ export function playSfx(name: Sfx) {
 /** The sound for the move a turn actually played, chess.js flags first. */
 export function moveSfx(r: TurnResult): Sfx {
   const { flags } = r.executed;
+  // A busted All-In plays nothing: the piece just leaves.
+  if (r.effects?.some((e) => e.kind === 'all_in' && !e.won)) return 'forced';
   if (r.inCheck) return 'check';
   if (flags.includes('p')) return 'promote';
   if (flags.includes('k') || flags.includes('q')) return 'castle';

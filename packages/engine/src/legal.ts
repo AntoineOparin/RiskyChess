@@ -1,5 +1,5 @@
 import { Chess, type Move } from 'chess.js';
-import type { MoveInput, ResolvedMove } from '@gamble/shared';
+import type { MoveInput, ResolvedMove } from '@risky-chess/shared';
 
 export function legalMoves(fen: string): Move[] {
   return new Chess(fen).moves({ verbose: true });

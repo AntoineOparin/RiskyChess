@@ -1,5 +1,5 @@
 {
-  "name": "@gamble/server",
+  "name": "@risky-chess/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@gamble/engine": "workspace:*",
-    "@gamble/shared": "workspace:*",
+    "@risky-chess/engine": "workspace:*",
+    "@risky-chess/shared": "workspace:*",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "socket.io": "^4.8.4"

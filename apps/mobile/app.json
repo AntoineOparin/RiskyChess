@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Gamble Chess",
-    "slug": "gamble-chess",
+    "name": "Risky Chess",
+    "slug": "risky-chess",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,7 +21,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "gamblechess",
+    "scheme": "riskychess",
     "experiments": {
       "typedRoutes": true
     },

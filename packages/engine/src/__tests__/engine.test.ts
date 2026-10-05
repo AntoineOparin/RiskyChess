@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { START_FEN, type CoinToss, type MoveInput } from '@gamble/shared';
+import { START_FEN, type CoinToss, type MoveInput } from '@risky-chess/shared';
 import {
   isForcedTurn,
   pickBotPair,

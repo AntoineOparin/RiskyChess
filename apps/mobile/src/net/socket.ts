@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { io, type Socket } from 'socket.io-client';
-import type { Ack, AckFn, ClientToServerEvents, ServerToClientEvents } from '@gamble/shared';
+import type { Ack, AckFn, ClientToServerEvents, ServerToClientEvents } from '@risky-chess/shared';
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 

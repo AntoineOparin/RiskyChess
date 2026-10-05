@@ -1,5 +1,5 @@
 {
-  "name": "@gamble/engine",
+  "name": "@risky-chess/engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@gamble/shared": "workspace:*",
+    "@risky-chess/shared": "workspace:*",
     "chess.js": "^1.4.0"
   }
 }

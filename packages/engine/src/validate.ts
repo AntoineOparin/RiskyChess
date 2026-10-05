@@ -1,4 +1,4 @@
-import type { ErrorCode, MoveInput, ResolvedMove } from '@gamble/shared';
+import type { ErrorCode, MoveInput, ResolvedMove } from '@risky-chess/shared';
 import { legalMoves, lanOf, toResolved } from './legal';
 
 export type ValidationResult =

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import type { TurnResult } from '@gamble/shared';
+import type { TurnResult } from '@risky-chess/shared';
 import { colors, slotColor } from '../lib/theme';
 
 const SPIN_MS = 1400;

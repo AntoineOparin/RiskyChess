@@ -9,7 +9,7 @@ import {
   type ClientToServerEvents,
   type Color,
   type ServerToClientEvents,
-} from '@gamble/shared';
+} from '@risky-chess/shared';
 import type { GameManager } from '../game/GameManager';
 
 interface SocketData {

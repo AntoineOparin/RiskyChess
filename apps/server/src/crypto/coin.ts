@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
-import { rngTosser, type Rng, type Tosser } from '@gamble/engine';
+import { rngTosser, type Rng, type Tosser } from '@risky-chess/engine';
 
 /** CSPRNG-backed rng: the only source of randomness for authoritative tosses. */
 export const cryptoRng: Rng = { int: (maxExclusive) => randomInt(0, maxExclusive) };

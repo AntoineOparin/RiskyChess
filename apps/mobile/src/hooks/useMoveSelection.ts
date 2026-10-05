@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { legalMoves, toResolved } from '@gamble/engine';
-import type { MoveInput, MoveSlot, PromotionPiece, ResolvedMove, Square } from '@gamble/shared';
+import { legalMoves, toResolved } from '@risky-chess/engine';
+import type { MoveInput, MoveSlot, PromotionPiece, ResolvedMove, Square } from '@risky-chess/shared';
 
 type Slots = Record<MoveSlot, ResolvedMove | null>;
 const EMPTY: Slots = { A: null, B: null };

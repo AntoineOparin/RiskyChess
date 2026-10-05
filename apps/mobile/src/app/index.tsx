@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import type { GameMode } from '@gamble/shared';
+import type { GameMode } from '@risky-chess/shared';
 import { saveSeat } from '../net/seats';
 import { getSocket, request, SERVER_URL } from '../net/socket';
 import { colors } from '../lib/theme';

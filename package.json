@@ -1,12 +1,12 @@
 {
-  "name": "gamble-chess",
+  "name": "risky-chess",
   "private": true,
   "packageManager": "pnpm@10.34.6",
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "dev:server": "pnpm --filter @gamble/server dev",
-    "dev:mobile": "pnpm --filter @gamble/mobile start"
+    "dev:server": "pnpm --filter @risky-chess/server dev",
+    "dev:mobile": "pnpm --filter @risky-chess/mobile start"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

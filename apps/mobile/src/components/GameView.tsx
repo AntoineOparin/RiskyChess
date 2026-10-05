@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { Color, GameOutcome, MoveInput, TurnResult } from '@gamble/shared';
+import type { Color, GameOutcome, MoveInput, TurnResult } from '@risky-chess/shared';
 import { useMoveSelection } from '../hooks/useMoveSelection';
 import { describeOutcome } from '../lib/chess';
 import { colors } from '../lib/theme';

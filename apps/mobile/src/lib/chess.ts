@@ -1,4 +1,4 @@
-import type { Color, GameOutcome, Square } from '@gamble/shared';
+import type { Color, GameOutcome, Square } from '@risky-chess/shared';
 
 export const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
 

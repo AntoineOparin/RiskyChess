@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Color, GameOutcome, GameSession, TurnResult, TurnStartedPayload } from '@gamble/shared';
+import type { Color, GameOutcome, GameSession, TurnResult, TurnStartedPayload } from '@risky-chess/shared';
 
 interface OnlineGameState {
   session: GameSession | null;

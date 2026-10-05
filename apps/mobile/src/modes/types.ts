@@ -60,8 +60,8 @@ export interface ModeUi {
   Panel?: ComponentType<{ ctx: TableCtx }>;
   /** Extra text on a slot chip (odds, payout). */
   SlotBadge?: ComponentType<{ ctx: TableCtx; slot: MoveSlot }>;
-  /** Toast text for an effect this mode owns; null to stay silent. */
-  describeEffect?: (effect: TurnEffect, myColor: Color) => EffectLine | null;
+  /** Toast text for an effect this mode owns; null to stay silent. `turn` is the turn it came from, if any. */
+  describeEffect?: (effect: TurnEffect, myColor: Color, turn?: TurnResult) => EffectLine | null;
   /** Small additions to a player's bar (e.g. sealed bets). */
   PlayerAccessory?: ComponentType<{ ctx: TableCtx; color: Color }>;
   /** A card on the game-over screen (e.g. the bet ledger). */

@@ -6,6 +6,7 @@ import { sideBets } from './side-bets';
 import type { ModeModule } from './types';
 
 export * from './types';
+export { LOADED_DICE_TIERS, BOT_STAKE, shiftFor } from './loaded-dice';
 
 export const MODE_REGISTRY: Record<ModeId, ModeModule> = {
   loaded_dice: loadedDice,

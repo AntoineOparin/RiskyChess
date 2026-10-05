@@ -1,4 +1,4 @@
-import type { Color, GameRules, TurnEffect } from '@risky-chess/shared';
+import type { Color, GameRules, TurnEffect, TurnResult } from '@risky-chess/shared';
 import { activeUi } from '../modes/registry';
 import type { EffectLine } from '../modes/types';
 import { CHIP } from './theme';
@@ -22,13 +22,13 @@ function generic(e: TurnEffect, me: Color): EffectLine | null {
 }
 
 /** Toast lines for a turn's effects: the first active mode that claims an effect wins, else the generic text. */
-export function describeEffects(effects: readonly TurnEffect[], rules: GameRules, me: Color): EffectLine[] {
+export function describeEffects(effects: readonly TurnEffect[], rules: GameRules, me: Color, turn?: TurnResult): EffectLine[] {
   const modes = activeUi(rules.modes);
   const out: EffectLine[] = [];
   for (const e of effects) {
     let line: EffectLine | null = null;
     for (const [, ui] of modes) {
-      line = ui.describeEffect?.(e, me) ?? null;
+      line = ui.describeEffect?.(e, me, turn) ?? null;
       if (line) break;
     }
     line ??= generic(e, me);

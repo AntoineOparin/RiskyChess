@@ -144,7 +144,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
   // Effect toasts once a reveal settles, only for turns revealed while this screen is open.
   const firstLive = useRef(history.at(-1)?.turnNumber ?? 0);
   const feedTurn = !revealing && lastShown && lastShown.turnNumber > firstLive.current ? lastShown : null;
-  const feedLines = useMemo(() => (feedTurn ? describeEffects(feedTurn.effects ?? [], rules, myColor) : []), [feedTurn, rules, myColor]);
+  const feedLines = useMemo(() => (feedTurn ? describeEffects(feedTurn.effects ?? [], rules, myColor, feedTurn) : []), [feedTurn, rules, myColor]);
 
   const skip = useCallback(() => {
     if (!revealing) return;

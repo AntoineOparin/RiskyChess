@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# tests
+coverage/
+
+# logs
+logs/
+*.log
+
+# environment (commit .env.example instead)
+.env
+.env.*
+!.env.example
+
+# runtime data
+*.pid
+*.sqlite
+*.sqlite3
+*.db

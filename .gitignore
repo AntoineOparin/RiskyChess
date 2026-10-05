@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------
+# Monorepo-wide ignores. App-specific rules live in
+# apps/server/.gitignore and apps/mobile/.gitignore.
+# ---------------------------------------------------------------
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Test & coverage
+coverage/
+.nyc_output/
+*.lcov
+.vitest/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables (commit a .env.example instead)
+.env
+.env.*
+!.env.example
+
+# Caches
+.cache/
+.eslintcache
+.turbo/
+.parcel-cache/
+*.tmp
+*.temp
+
+# Expo / React Native (also covered in apps/mobile/.gitignore)
+.expo/
+.expo-shared/
+web-build/
+.metro-health-check*
+
+# Secrets / signing material
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.keystore
+!debug.keystore
+*.mobileprovision
+
+# Editors & IDEs
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Claude Code local settings
+.claude/settings.local.json

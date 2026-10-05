@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { isClassic } from '@risky-chess/shared';
 import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { GameView } from '../../components/GameView';
-import { RulesSheet } from '../../components/RulesSheet';
-import { useOnlineGame } from '../../hooks/useOnlineGame';
-import { colors } from '../../lib/theme';
+import { router, useLocalSearchParams } from 'expo-router';
+import { GameView } from '../../../components/GameView';
+import { RulesSheet } from '../../../components/RulesSheet';
+import { useOnlineGame } from '../../../hooks/useOnlineGame';
+import { colors } from '../../../lib/theme';
 
 /** Re-renders every second while a countdown is visible. */
 function useNow(active: boolean) {
@@ -67,6 +67,7 @@ export default function OnlineGame() {
       submitting={game.submitting}
       error={game.error}
       onSubmit={(a, b, extras) => void game.submit(a, b, extras)}
+      onOpenFairness={() => router.push({ pathname: '/game/[id]/fairness', params: { id: session.id } })}
       onResign={() => void game.resign()}
       table={{
         gameId: session.id,

@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "@risky-chess/shared": "workspace:*",
     "chess.js": "^1.4.0"
   }

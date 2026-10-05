@@ -27,7 +27,7 @@ Chess where the side to move submits **two** legal moves and the server flips a 
 - If exactly one legal move exists, it is played without a toss (`forced: true`).
 - Mate, stalemate and draws are evaluated after the executed move. Repetition counts only executed positions.
 - A disconnected player has 60 s to rejoin before forfeiting. A turn submitted before the drop still resolves. Bot games never forfeit on disconnect.
-- Tosses use `crypto.randomInt` on the server only.
+- Online tosses are provably fair (commit-reveal): the server commits to `sha256(serverSeed)` before the turn, the mover adds a client seed, and the roll is `HMAC-SHA256(serverSeed, "gameId:turn:clientSeed")` mapped uniformly to 0–9999. The app re-verifies every toss (see the Fairness screen). Offline games use a local, unverifiable coin.
 
 ## Getting started
 

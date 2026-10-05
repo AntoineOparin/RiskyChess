@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { MoveInput, TurnExtras } from '@risky-chess/shared';
 import { newSubmissionId } from '../lib/chess';
+import { newClientSeed } from '../lib/fairness';
 import { loadSeat } from '../net/seats';
 import { getSocket, request } from '../net/socket';
 import { useGameStore } from '../state/gameStore';
@@ -79,7 +80,8 @@ export function useOnlineGame(gameId: string) {
       if (!s) return;
       useGameStore.getState().set({ submitting: true, error: null });
       // One id across retries: the server dedupes, so a lost ack never double-resolves.
-      const payload = { gameId, turnNumber: s.turnNumber, clientSubmissionId: newSubmissionId(), moveA, moveB, ...(extras ? { extras } : {}) };
+      // A fresh client seed per turn, kept across retries of the same submission.
+      const payload = { gameId, turnNumber: s.turnNumber, clientSubmissionId: newSubmissionId(), moveA, moveB, extras: { ...extras, clientSeed: newClientSeed() } };
       let res = await request('submit_moves', payload);
       for (let i = 1; i < SUBMIT_ATTEMPTS && !res.ok && res.error === 'NETWORK'; i++) {
         res = await request('submit_moves', payload);

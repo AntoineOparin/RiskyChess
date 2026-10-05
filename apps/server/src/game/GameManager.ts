@@ -33,7 +33,7 @@ import {
   type SeatGrant,
   type ServerToClientEvents,
 } from '@risky-chess/shared';
-import { cryptoRng, newGameCode, newId, newToken } from '../crypto/coin';
+import { cryptoRng, hmacRngFor, newClientSeed, newGameCode, newId, newServerSeed, newToken } from '../crypto/coin';
 import type { GameRecord, GameStore } from './GameStore';
 import { viewFor } from './redact';
 import { Timers } from './timers';
@@ -57,8 +57,11 @@ export interface GameManagerOptions {
   graceMs: number;
   turnTimeoutMs: number | null;
   botThinkMs: { min: number; max: number };
-  /** Source of every authoritative 0–9999 toss roll. */
-  tossRng: Rng;
+  /**
+   * Test seam: draw toss rolls from this rng instead of the committed HMAC
+   * roll. Unset in production, where every toss is commit-reveal.
+   */
+  tossRng?: Rng;
   /** Legacy test seam: decides the slot directly, bypassing the roll. */
   tosser?: Tosser;
   /** Drives bot move variety and seat assignment; never tosses. */
@@ -94,7 +97,6 @@ export class GameManager {
       graceMs: DISCONNECT_GRACE_MS,
       turnTimeoutMs: TURN_TIMEOUT_MS,
       botThinkMs: BOT_THINK_MS,
-      tossRng: cryptoRng,
       rng: cryptoRng,
       ttlMs: GAME_TTL_MS,
       ...opts,
@@ -141,6 +143,7 @@ export class GameManager {
       connections: { [color]: connId },
       graceDeadlines: {},
       submissions: new Map(),
+      turnSeeds: new Map(),
     };
     this.store.set(record);
 
@@ -251,11 +254,14 @@ export class GameManager {
         ...(sub.extras ? { extras: sub.extras } : {}),
         history: s.history,
       },
-      this.tossDeps(),
+      this.tossDeps(record, sub),
     );
     if (!resolved.ok) return fail(resolved.error, resolved.message);
 
     const { result } = resolved;
+    // Revealed in the result now; the secret has no further use.
+    record.turnSeeds.delete(s.turnNumber);
+    delete s.pendingCommitment;
     this.timers.clear(`${s.id}:turn`);
     delete s.turnDeadline;
     s.history.push(result);
@@ -327,8 +333,29 @@ export class GameManager {
 
   // ---------- internals ----------
 
-  private tossDeps(): ResolveDeps {
-    return this.opts.tosser ? { tosser: this.opts.tosser } : { rng: this.opts.tossRng, method: 'crypto.randomInt' };
+  /** The coin for this turn: the committed HMAC roll, unless a test seam replaces it. */
+  private tossDeps(record: GameRecord, sub: MoveSubmission): ResolveDeps {
+    if (this.opts.tosser) return { tosser: this.opts.tosser };
+    if (this.opts.tossRng) return { rng: this.opts.tossRng, method: 'crypto.randomInt' };
+    const s = record.session;
+    const serverSeed = record.turnSeeds.get(s.turnNumber);
+    if (!serverSeed || !s.pendingCommitment) throw new Error(`No committed seed for ${s.id} turn ${s.turnNumber}`);
+    const clientSeed = sub.extras?.clientSeed ?? newClientSeed();
+    return {
+      rng: hmacRngFor(serverSeed, s.id, s.turnNumber, clientSeed),
+      method: 'hmac-commit-reveal',
+      proof: { commitment: s.pendingCommitment, serverSeed, clientSeed },
+    };
+  }
+
+  /** Commits this turn's seed before anyone can submit: its hash goes out with turn_started. */
+  private commitSeed(record: GameRecord): void {
+    const s = record.session;
+    if (this.opts.tosser || this.opts.tossRng) return;
+    const { seed, commitment } = newServerSeed();
+    record.turnSeeds.clear();
+    record.turnSeeds.set(s.turnNumber, seed);
+    s.pendingCommitment = commitment;
   }
 
   /** game_started goes to each human seat separately, as that seat's view. */
@@ -342,6 +369,7 @@ export class GameManager {
   private beginTurn(record: GameRecord): void {
     const s = record.session;
     if (s.status === 'finished') return;
+    this.commitSeed(record);
     const mover = s.players[s.turn];
     if (mover && !mover.connected) {
       this.pause(record);
@@ -356,6 +384,7 @@ export class GameManager {
       status: s.status,
       ...(s.turnDeadline ? { deadline: s.turnDeadline } : {}),
       ...(s.graceEndsAt ? { graceEndsAt: s.graceEndsAt } : {}),
+      ...(s.pendingCommitment ? { commitment: s.pendingCommitment } : {}),
     });
     if (mover?.isBot) this.scheduleBot(record);
   }
@@ -423,6 +452,8 @@ export class GameManager {
     }
     s.status = 'finished';
     s.outcome = outcome;
+    record.turnSeeds.clear();
+    delete s.pendingCommitment;
     delete s.graceEndsAt;
     delete s.turnDeadline;
     s.updatedAt = Date.now();

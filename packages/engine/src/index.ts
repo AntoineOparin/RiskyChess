@@ -7,3 +7,4 @@ export * from './economy';
 export * from './resolve';
 export * from './bot';
 export * from './modes';
+export * from "./fairness";

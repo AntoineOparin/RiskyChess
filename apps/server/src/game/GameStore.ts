@@ -10,6 +10,11 @@ export interface GameRecord {
   graceDeadlines: Partial<Record<Color, number>>;
   /** clientSubmissionId → ack already returned, for idempotent retries. */
   submissions: Map<string, Ack<{ accepted: true }>>;
+  /**
+   * Provably Fair: turnNumber → secret server seed (hex), committed at turn
+   * start. Never sent until the turn resolves, never logged, deleted once revealed.
+   */
+  turnSeeds: Map<number, string>;
 }
 
 export interface GameStore {

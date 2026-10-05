@@ -20,7 +20,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: 'Risky Chess' }} />
         <Stack.Screen name="new-game" options={{ title: 'New game' }} />
         <Stack.Screen name="local" options={{ title: 'Offline vs Bot' }} />
-        <Stack.Screen name="game/[id]" options={{ title: 'Online Game' }} />
+        <Stack.Screen name="game/[id]/index" options={{ title: 'Online Game' }} />
+        <Stack.Screen name="game/[id]/fairness" options={{ title: 'Fairness' }} />
       </Stack>
     </>
   );

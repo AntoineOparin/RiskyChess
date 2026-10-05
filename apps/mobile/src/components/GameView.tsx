@@ -16,6 +16,7 @@ import { Board, type Marker } from './Board/Board';
 import { BoardOverlay } from './Board/BoardOverlay';
 import { TossReveal } from './Board/TossReveal';
 import { EffectsFeed } from './EffectsFeed';
+import { FairBadge } from './FairBadge';
 import { ModePanelZone } from './ModePanelZone';
 import { MoveSlotBar } from './MoveSlotBar';
 import { OddsBadge } from './OddsBadge';
@@ -49,6 +50,8 @@ export interface GameViewProps {
   onSubmit: (moveA: MoveInput, moveB: MoveInput | null, extras?: TurnExtras) => void;
   onResign: () => void;
   table?: TableInfo;
+  /** Opens the per-turn fairness ledger (online games). */
+  onOpenFairness?: () => void;
   /** Shown once the game is over and the final reveal has finished. */
   outcomeAction?: { label: string; onPress: () => void };
 }
@@ -61,7 +64,7 @@ const marker = (m: { from: Marker['from']; to: Marker['to'] } | null | undefined
  * revealed one at a time on the board; it shows each turn's starting position
  * until its reveal ends. Tapping the board during a reveal skips it.
  */
-export function GameView({ fen, myColor, history, myTurn, outcome, names, banner, submitting = false, error, onSubmit, onResign, outcomeAction, table }: GameViewProps) {
+export function GameView({ fen, myColor, history, myTurn, outcome, names, banner, submitting = false, error, onSubmit, onResign, outcomeAction, table, onOpenFairness }: GameViewProps) {
   const { width } = useWindowDimensions();
   const size = Math.min(width - 32, 480);
   const cell = size / 8;
@@ -278,10 +281,13 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
         />
       )}
       {lastShown && !lastShown.forced && (
-        <Text style={styles.lastTurn}>
-          Last toss: {lastShown.moveA.san} vs {lastShown.moveB?.san ?? 'All-In'} → {lastShown.coin?.chosen} ({lastShown.executed.san})
-          {lastShown.odds && lastShown.odds.A !== 5000 ? ` at ${Math.round(lastShown.odds.A / 100)}/${100 - Math.round(lastShown.odds.A / 100)}` : ''}
-        </Text>
+        <View style={styles.lastRow}>
+          <Text style={styles.lastTurn}>
+            Last toss: {lastShown.moveA.san} vs {lastShown.moveB?.san ?? 'All-In'} → {lastShown.coin?.chosen} ({lastShown.executed.san})
+            {lastShown.odds && lastShown.odds.A !== 5000 ? ` at ${Math.round(lastShown.odds.A / 100)}/${100 - Math.round(lastShown.odds.A / 100)}` : ''}
+          </Text>
+          <FairBadge result={lastShown} onPress={onOpenFairness} />
+        </View>
       )}
       {settledOutcome &&
         modes
@@ -315,6 +321,7 @@ const styles = StyleSheet.create({
   resign: { alignSelf: 'center', padding: 8 },
   resignText: { color: colors.danger, fontWeight: '600' },
   lastTurn: { color: colors.textMuted, textAlign: 'center', fontSize: 12 },
+  lastRow: { gap: 2, alignItems: 'center' },
   help: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center' },
   helpText: { color: colors.textMuted, fontWeight: '800', fontSize: 13 },
   action: { backgroundColor: colors.slotA, borderRadius: 12, minHeight: 56, alignItems: 'center', justifyContent: 'center' },

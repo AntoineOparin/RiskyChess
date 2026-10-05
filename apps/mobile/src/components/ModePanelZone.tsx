@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { activeUi } from '../modes/registry';
 import type { TableCtx } from '../modes/types';
+import { ModeBoundary } from './ModeBoundary';
 
 /**
  * The one zone where mode controls live, between the status row and the slot
@@ -15,7 +16,9 @@ export function ModePanelZone({ ctx }: { ctx: TableCtx }) {
         const Panel = ui.Panel!;
         return (
           <View key={id} style={styles.panel}>
-            <Panel ctx={ctx} />
+            <ModeBoundary mode={id} part="Panel" ctx={ctx}>
+              <Panel ctx={ctx} />
+            </ModeBoundary>
           </View>
         );
       })}

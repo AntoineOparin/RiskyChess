@@ -4,6 +4,7 @@ import { chipDelta, previewOdds } from '@risky-chess/engine';
 import { CLASSIC_RULES, type Color, type GameRules, type ModeState, type MoveInput, type TurnExtras, type TurnResult, type Wallet, type GameOutcome } from '@risky-chess/shared';
 import { useMoveSelection } from '../hooks/useMoveSelection';
 import { describeEffects } from '../lib/effects';
+import { logger } from '../lib/log';
 import { activeUi } from '../modes/registry';
 import type { BetOutcome, BetRequest, TableCtx } from '../modes/types';
 import { cleanExtras, useModeExtras } from '../state/modeExtras';
@@ -17,6 +18,7 @@ import { BoardOverlay } from './Board/BoardOverlay';
 import { TossReveal } from './Board/TossReveal';
 import { EffectsFeed } from './EffectsFeed';
 import { FairBadge } from './FairBadge';
+import { ModeBoundary } from './ModeBoundary';
 import { ModePanelZone } from './ModePanelZone';
 import { MoveSlotBar } from './MoveSlotBar';
 import { OddsBadge } from './OddsBadge';
@@ -55,6 +57,8 @@ export interface GameViewProps {
   /** Shown once the game is over and the final reveal has finished. */
   outcomeAction?: { label: string; onPress: () => void };
 }
+
+const log = logger('game-view');
 
 const marker = (m: { from: Marker['from']; to: Marker['to'] } | null | undefined): Marker | null =>
   m ? { from: m.from, to: m.to } : null;
@@ -107,6 +111,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
       extras,
       history,
     });
+    if (!p.ok) log.debug('odds preview unavailable', { error: p.error, message: p.message, fen: displayFen, A: sel.slots.A.lan, B: sel.slots.B?.lan ?? null, extras });
     return p.ok ? p.odds : null;
   }, [table, canAct, sel.slots, extras, displayFen, history]);
 
@@ -137,13 +142,17 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
       .filter(([, ui]) => ui.PlayerAccessory)
       .map(([id, ui]) => {
         const Accessory = ui.PlayerAccessory!;
-        return <Accessory key={id} ctx={ctx} color={color} />;
+        return (
+          <ModeBoundary key={id} mode={id} part="PlayerAccessory" ctx={ctx}>
+            <Accessory ctx={ctx} color={color} />
+          </ModeBoundary>
+        );
       });
 
   // Effect toasts once a reveal settles, only for turns revealed while this screen is open.
   const firstLive = useRef(history.at(-1)?.turnNumber ?? 0);
   const feedTurn = !revealing && lastShown && lastShown.turnNumber > firstLive.current ? lastShown : null;
-  const feedLines = useMemo(() => (feedTurn ? describeEffects(feedTurn.effects ?? [], rules, myColor, feedTurn) : []), [feedTurn, rules, myColor]);
+  const feedLines = useMemo(() => (feedTurn ? describeEffects(feedTurn.effects ?? [], rules, myColor, feedTurn, table?.modeState) : []), [feedTurn, rules, myColor, table?.modeState]);
 
   const skip = useCallback(() => {
     if (!revealing) return;
@@ -280,7 +289,11 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
             badgeModes.length ? (
               badgeModes.map(([id, ui]) => {
                 const B = ui.SlotBadge!;
-                return <B key={id} ctx={ctx} slot={slot} />;
+                return (
+                  <ModeBoundary key={id} mode={id} part="SlotBadge" ctx={ctx}>
+                    <B ctx={ctx} slot={slot} />
+                  </ModeBoundary>
+                );
               })
             ) : (
               <OddsBadge odds={odds} slot={slot} />
@@ -304,7 +317,11 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
           .filter(([, ui]) => ui.GameOverCard)
           .map(([id, ui]) => {
             const Card = ui.GameOverCard!;
-            return <Card key={id} ctx={ctx} />;
+            return (
+              <ModeBoundary key={id} mode={id} part="GameOverCard" ctx={ctx}>
+                <Card ctx={ctx} />
+              </ModeBoundary>
+            );
           })}
       {settledOutcome && outcomeAction && (
         <Pressable onPress={outcomeAction.onPress} style={styles.action}>

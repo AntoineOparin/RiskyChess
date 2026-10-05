@@ -76,6 +76,7 @@ export default function OnlineGame() {
         modeState: session.modeState,
         turnNumber: session.turnNumber,
         online: true,
+        placeBet: game.placeBet,
       }}
     />
     <RulesSheet

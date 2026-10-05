@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { START_FEN, type GameRules, type MoveInput } from '@risky-chess/shared';
 import { Chess } from 'chess.js';
-import { edgeForGap, marketLine, pickBotPair, pickBotSubmission, previewOdds, rankBotMoves, resolveTurn, scoreMove, seededRng, startingWallet, type Rng } from '../..';
+import { edgeForGap, marketLine, tryMarketLine, pickBotPair, pickBotSubmission, previewOdds, rankBotMoves, resolveTurn, scoreMove, seededRng, startingWallet, type Rng } from '../..';
 
 const m = (lan: string): MoveInput => ({ from: lan.slice(0, 2), to: lan.slice(2, 4), ...(lan[4] ? { promotion: lan[4] } : {}) }) as MoveInput;
 const RULES: GameRules = { modes: ['odds_market'] };
@@ -62,6 +62,20 @@ describe('marketLine', () => {
     const b = legal.find((x) => x.lan === 'b1c3')!;
     const gap = scoreMove(HANGING_Q, a) - scoreMove(HANGING_Q, b);
     expect(marketLine(HANGING_Q, m('g1f3'), m('b1c3')).edge).toBe(edgeForGap(gap));
+  });
+});
+
+describe('stale slots', () => {
+  // A view once paired the previous turn's slots (White's d2d4) with Black's position.
+  const afterD4 = 'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1';
+
+  it('tryMarketLine returns null instead of throwing for moves from another position', () => {
+    expect(tryMarketLine(afterD4, m('e2e4'), m('d2d4'))).toBeNull();
+    expect(tryMarketLine(afterD4, m('e7e5'), m('d7d5'))).toEqual(marketLine(afterD4, m('e7e5'), m('d7d5')));
+  });
+
+  it('marketLine names the position when a move is illegal', () => {
+    expect(() => marketLine(afterD4, m('e2e4'), m('d2d4'))).toThrow(`e2e4 is not legal in ${afterD4}`);
   });
 });
 

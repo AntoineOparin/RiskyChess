@@ -1,16 +1,25 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text } from 'react-native';
-import { marketLine, type MarketLine } from '@risky-chess/engine';
+import { tryMarketLine, type MarketLine } from '@risky-chess/engine';
+import { logger } from '../../lib/log';
 import type { MoveSlot } from '@risky-chess/shared';
 import { pct } from '../../components/OddsBadge';
-import { signed } from '../../lib/effects';
+import { signed } from '../../lib/format';
 import { CHIP, colors } from '../../lib/theme';
 import type { ModeUi, TableCtx } from '../types';
+
+const log = logger('odds-market');
 
 /** The house line for the pair in the slots; null until both are filled (or on an All-In). */
 function useLine(ctx: TableCtx): MarketLine | null {
   const { A, B } = ctx.slots;
-  return useMemo(() => (A && B && !ctx.extras.allIn ? marketLine(ctx.fen, A, B) : null), [ctx.fen, A, B, ctx.extras.allIn]);
+  return useMemo(() => {
+    if (!A || !B || ctx.extras.allIn) return null;
+    const line = tryMarketLine(ctx.fen, A, B);
+    // Slots are keyed to their position, so this should never happen; if it does, say where.
+    if (!line) log.warn('slots are not legal in the displayed position', { fen: ctx.fen, A: A.lan, B: B.lan, turnNumber: ctx.turnNumber });
+    return line;
+  }, [ctx.fen, A, B, ctx.extras.allIn, ctx.turnNumber]);
 }
 
 /** "House leans 12% against exd5", in one line. */

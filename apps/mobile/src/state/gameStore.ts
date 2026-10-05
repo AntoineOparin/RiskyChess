@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import { logger } from '../lib/log';
 import { applyModeEffects, sideToMove } from '@risky-chess/engine';
-import type { Color, GameOutcome, GameSession, TurnEffect, TurnResult, TurnStartedPayload, Wallet } from '@risky-chess/shared';
+import type { Color, GameOutcome, GameSession, PropBet, TurnEffect, TurnResult, TurnStartedPayload, Wallet } from '@risky-chess/shared';
 
 interface OnlineGameState {
   session: GameSession | null;
@@ -17,10 +18,14 @@ interface OnlineGameState {
   applyTurnStarted(p: TurnStartedPayload): void;
   applyGameOver(outcome: GameOutcome, settle?: { effects?: TurnEffect[]; walletAfter?: Wallet }): void;
   setOpponentPresence(color: Color, graceEndsAt: number | null): void;
+  /** Game over: every bet, unsealed. */
+  applyBetsRevealed(bets: Partial<Record<Color, PropBet[]>>): void;
   set(partial: Partial<Pick<OnlineGameState, 'connected' | 'submitting' | 'error'>>): void;
 }
 
 const initial = { session: null, color: null, connected: false, submitting: false, error: null, opponentGraceEndsAt: null };
+
+const log = logger('store');
 
 /** Mirror of the server's session. The server FEN always wins. */
 export const useGameStore = create<OnlineGameState>()((set, get) => ({
@@ -40,8 +45,12 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
 
   applyTurnResult: (r) => {
     const s = get().session;
-    if (!s || r.turnNumber < s.turnNumber) return 'duplicate';
+    if (!s || r.turnNumber < s.turnNumber) {
+      log.debug('ignored duplicate turn result', { got: r.turnNumber, have: s?.turnNumber });
+      return 'duplicate';
+    }
     if (r.turnNumber > s.turnNumber) return 'gap';
+    if (r.fenBefore !== s.fen) log.warn('turn result starts from a different position than ours', { turnNumber: r.turnNumber, ours: s.fen, theirs: r.fenBefore });
     set({
       session: {
         ...s,
@@ -93,6 +102,11 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
         status: graceEndsAt === null && s.status === 'paused_disconnect' ? 'awaiting_submission' : s.status,
       },
     });
+  },
+
+  applyBetsRevealed: (bets) => {
+    const s = get().session;
+    if (s) set({ session: { ...s, modeState: { ...s.modeState, bets: { ...s.modeState.bets, ...bets } } } });
   },
 
   set: (partial) => set(partial),

@@ -42,10 +42,20 @@ export function marketLine(fen: string, moveA: MoveInput, moveB: MoveInput): Mar
   const legal = new Chess(fen).moves({ verbose: true });
   const find = (m: MoveInput) => {
     const hit = legal.find((x) => x.lan === lanOf(m));
-    if (!hit) throw new Error(`marketLine: ${lanOf(m)} is not legal`);
+    if (!hit) throw new Error(`marketLine: ${lanOf(m)} is not legal in ${fen}`);
     return hit;
   };
   return lineFromScores(scoreMove(fen, find(moveA)), scoreMove(fen, find(moveB)));
+}
+
+/**
+ * marketLine for UI previews: null instead of throwing when either move isn't
+ * legal in `fen` (e.g. a view holding slots from a different position).
+ */
+export function tryMarketLine(fen: string, moveA: MoveInput, moveB: MoveInput): MarketLine | null {
+  const legal = new Set(new Chess(fen).moves({ verbose: true }).map((x) => x.lan));
+  if (!legal.has(lanOf(moveA)) || !legal.has(lanOf(moveB))) return null;
+  return marketLine(fen, moveA, moveB);
 }
 
 /** How many of the bot's best moves it considers pairing against a market. */

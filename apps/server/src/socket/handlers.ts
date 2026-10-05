@@ -12,6 +12,9 @@ import {
   type ServerToClientEvents,
 } from '@risky-chess/shared';
 import type { GameManager } from '../game/GameManager';
+import { errorFields, logger } from '../log';
+
+const log = logger('socket');
 
 interface SocketData {
   /** gameId → seat this socket holds. */
@@ -31,18 +34,22 @@ interface Schema<P> {
 }
 
 /** Validates the payload and guarantees the ack is called exactly once, even on throw. */
-function handle<P, T>(schema: Schema<P>, fn: (p: P) => Ack<T>) {
+function handle<P, T>(socket: GameSocket, event: string, schema: Schema<P>, fn: (p: P) => Ack<T>) {
   return (raw: unknown, ack: unknown) => {
     const reply = typeof ack === 'function' ? (ack as (r: Ack<T>) => void) : () => {};
     const parsed = schema.safeParse(raw);
     if (!parsed.success) {
-      reply({ ok: false, error: 'INVALID_PAYLOAD', message: parsed.error.issues[0]?.message ?? 'Invalid payload' });
+      const issue = parsed.error.issues[0]?.message ?? 'Invalid payload';
+      log.warn('invalid payload', { event, socket: socket.id, issue, payload: raw });
+      reply({ ok: false, error: 'INVALID_PAYLOAD', message: issue });
       return;
     }
     try {
-      reply(fn(parsed.data));
+      const res = fn(parsed.data);
+      if (!res.ok) log.debug('rejected', { event, socket: socket.id, error: res.error, message: res.message });
+      reply(res);
     } catch (err) {
-      console.error(err);
+      log.error('handler threw', { event, socket: socket.id, seats: Object.fromEntries(socket.data.seats ?? []), payload: parsed.data, ...errorFields(err) });
       reply({ ok: false, error: 'INVALID_PAYLOAD', message: 'Internal error' });
     }
   };
@@ -51,6 +58,7 @@ function handle<P, T>(schema: Schema<P>, fn: (p: P) => Ack<T>) {
 export function registerHandlers(io: GameServer, manager: GameManager): void {
   io.on('connection', (socket: GameSocket) => {
     socket.data.seats = new Map();
+    log.debug('connected', { socket: socket.id });
 
     const seat = (gameId: string, color: Color) => {
       socket.data.seats.set(gameId, color);
@@ -60,7 +68,7 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     socket.on(
       'create_game',
-      handle(createGameSchema, (p) => {
+      handle(socket, 'create_game', createGameSchema, (p) => {
         const res = manager.create(p, socket.id);
         if (res.ok) seat(res.data.gameId, res.data.color);
         return res;
@@ -69,7 +77,7 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     socket.on(
       'join_game',
-      handle(joinGameSchema, (p) => {
+      handle(socket, 'join_game', joinGameSchema, (p) => {
         const res = manager.join(p, socket.id);
         if (res.ok) seat(res.data.gameId, res.data.color);
         return res;
@@ -78,7 +86,7 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     socket.on(
       'rejoin_game',
-      handle(rejoinGameSchema, (p) => {
+      handle(socket, 'rejoin_game', rejoinGameSchema, (p) => {
         const res = manager.rejoin(p, socket.id);
         if (res.ok) seat(p.gameId, res.data.color);
         return res;
@@ -87,7 +95,7 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     socket.on(
       'submit_moves',
-      handle(moveSubmissionSchema, (p) => {
+      handle(socket, 'submit_moves', moveSubmissionSchema, (p) => {
         const color = seatOf(p.gameId);
         if (!color) return { ok: false, error: 'UNAUTHORIZED', message: 'You are not seated in this game' };
         return manager.submit(color, p);
@@ -96,7 +104,7 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     socket.on(
       'resign',
-      handle(gameRefSchema, (p) => {
+      handle(socket, 'resign', gameRefSchema, (p) => {
         const color = seatOf(p.gameId);
         if (!color) return { ok: false, error: 'UNAUTHORIZED', message: 'You are not seated in this game' };
         return manager.resign(p.gameId, color);
@@ -105,7 +113,7 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     socket.on(
       'request_state',
-      handle(gameRefSchema, (p) => {
+      handle(socket, 'request_state', gameRefSchema, (p) => {
         const color = seatOf(p.gameId);
         if (!color) return { ok: false, error: 'UNAUTHORIZED', message: 'You are not seated in this game' };
         return manager.getState(p.gameId, color);
@@ -114,14 +122,15 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     socket.on(
       'place_bet',
-      handle(placeBetSchema, (p) => {
+      handle(socket, 'place_bet', placeBetSchema, (p) => {
         const color = seatOf(p.gameId);
         if (!color) return { ok: false, error: 'UNAUTHORIZED', message: 'You are not seated in this game' };
         return manager.placeBet(color, p);
       }),
     );
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      log.debug('disconnected', { socket: socket.id, reason, seats: Object.fromEntries(socket.data.seats) });
       for (const [gameId, color] of socket.data.seats) manager.disconnect(gameId, color, socket.id);
     });
   });

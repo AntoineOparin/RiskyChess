@@ -8,7 +8,25 @@ import type { ModeModule } from './types';
 export * from './types';
 export { LOADED_DICE_TIERS, BOT_STAKE, shiftFor } from './loaded-dice';
 export { allInProblem, allInsLeft, assertLegalPosition, bonusFen, bustFen } from './all-in';
-export { MARKET, edgeForGap, marketLine, preferBalancedPair, type MarketLine } from './odds-market';
+export {
+  BET_CATALOG,
+  BET_KINDS,
+  BET_RULES,
+  betPrice,
+  betProfile,
+  botBets,
+  isUpset,
+  payoutX100For,
+  placeBet,
+  played,
+  settleBets,
+  validateBet,
+  type BetControl,
+  type BetEvalCtx,
+  type BetRequest,
+  type BetSpec,
+} from './side-bets';
+export { MARKET, edgeForGap, marketLine, tryMarketLine, preferBalancedPair, type MarketLine } from './odds-market';
 
 export const MODE_REGISTRY: Record<ModeId, ModeModule> = {
   loaded_dice: loadedDice,

@@ -29,6 +29,21 @@ Chess where the side to move submits **two** legal moves and the server flips a 
 - A disconnected player has 60 s to rejoin before forfeiting. A turn submitted before the drop still resolves. Bot games never forfeit on disconnect.
 - Online tosses are provably fair (commit-reveal): the server commits to `sha256(serverSeed)` before the turn, the mover adds a client seed, and the roll is `HMAC-SHA256(serverSeed, "gameId:turn:clientSeed")` mapped uniformly to 0–9999. The app re-verifies every toss (see the Fairness screen). Offline games use a local, unverifiable coin.
 
+## Game modes
+
+Pick a table on **New game**. Modes combine freely; **High Roller** turns all four on. With any mode on, both players start with 100 ◎ (play money, no real-money wagering) and earn the captured piece's value on every capture.
+
+| Mode | In two sentences |
+|---|---|
+| **Loaded Dice** | Favor slot A or B and stake 4 / 10 / 20 ◎ to move the coin +10 / +20 / +30 points toward it. The stake is paid whatever happens, and no line ever goes past 90/10. |
+| **Odds Market** | The house leans up to 15 points against the stronger move of your pair (by the one-ply heuristic), so best-move-plus-junk sits near 35/65. If the stronger move plays anyway, you're paid edge/100 ◎. |
+| **All-In** | Declare one capture on a fair 50/50 coin instead of a pair. Win: it plays and you move again (unless it checks or ends the game); lose: your capturing piece is removed. Once per piece type, never the king. |
+| **Side Bets** | Up to 3 sealed bets of 5–25 ◎ during the first 4 plies, only on things you can't force (the opponent's castling, promotions, upsets and All-In busts; game length, with void rules). Your opponent sees only how many you hold until game over. |
+
+Composition order for the line: base 50/50 → Odds Market → Loaded Dice stakes → clamp to [10%, 90%]. The side to move is always derived from the position (so an All-In bonus ply keeps the same seat to move).
+
+Balance scripts (engine package): `pnpm --filter @risky-chess/engine sim:dice`, `sim:market`, and `price:bets` (regenerates `packages/shared/src/betOdds.ts`).
+
 ## Getting started
 
 ### Prerequisites

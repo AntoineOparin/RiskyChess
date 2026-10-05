@@ -115,7 +115,9 @@ describe('socket integration', () => {
     for (const s of await Promise.all([sa, sb])) expect(s).toMatchObject({ rules, wallet: { w: 100, b: 100 } });
 
     const bet = await call((ack) => a.emit('place_bet', { gameId, clientBetId: 'x1', kind: 'opp_promotes', stake: 5 }, ack as never));
-    expect(bet).toMatchObject({ ok: false, error: 'MODE_DISABLED' });
+    expect(bet).toMatchObject({ ok: true, data: { bet: { kind: 'opp_promotes', stake: 5, status: 'open' } } });
+    const bad = await call((ack) => a.emit('place_bet', { gameId, clientBetId: 'x2', kind: 'opp_promotes', stake: 0 } as never, ack as never));
+    expect(bad).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
     const badRules = await call((ack) => a.emit('create_game', { mode: 'bot', displayName: 'A', rules: { modes: ['chaos'] } } as never, ack as never));
     expect(badRules).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
   });

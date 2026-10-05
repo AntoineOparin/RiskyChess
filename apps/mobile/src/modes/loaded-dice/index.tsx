@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { isForcedTurn, LOADED_DICE_TIERS } from '@risky-chess/engine';
 import { hasMode, type MoveSlot } from '@risky-chess/shared';
 import { pct } from '../../components/OddsBadge';
-import { signed } from '../../lib/effects';
+import { signed } from '../../lib/format';
 import { CHIP, colors, slotColor } from '../../lib/theme';
 import { previewWith } from '../preview';
 import type { ModeUi, TableCtx } from '../types';

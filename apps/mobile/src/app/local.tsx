@@ -34,6 +34,7 @@ export default function LocalGame() {
           modeState: game.modeState,
           turnNumber: game.history.length + 1,
           online: false,
+          placeBet: game.placeBet,
         }}
       />
     </View>

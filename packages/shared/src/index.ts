@@ -4,3 +4,4 @@ export * from './types/modes';
 export * from './types/socket';
 export * from './constants';
 export * from './schemas';
+export * from './betOdds';

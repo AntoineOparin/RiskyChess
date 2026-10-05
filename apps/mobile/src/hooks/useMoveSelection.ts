@@ -22,7 +22,21 @@ export function useMoveSelection(fen: string, enabled: boolean, single = false) 
   const legal = useMemo(() => legalMoves(fen), [fen]);
   const forced = legal.length === 1;
   const [from, setFrom] = useState<Square | null>(null);
-  const [slots, setSlots] = useState<Slots>(EMPTY);
+  // Slots are keyed by the position they were picked in. A new position must
+  // never be read with the previous turn's picks, not even for the one render
+  // before the reset effect runs: mode UI (the Odds Market line, odds
+  // previews) would price moves that are no longer legal.
+  const fresh = useMemo<Slots>(() => (legal.length === 1 ? { A: toResolved(legal[0]!), B: null } : EMPTY), [legal]);
+  const [picked, setPicked] = useState<{ fen: string; slots: Slots }>({ fen, slots: fresh });
+  const slots = picked.fen === fen ? picked.slots : fresh;
+  const setSlots = useCallback(
+    (next: Slots | ((s: Slots) => Slots)) =>
+      setPicked((p) => {
+        const base = p.fen === fen ? p.slots : fresh;
+        return { fen, slots: typeof next === 'function' ? next(base) : next };
+      }),
+    [fen, fresh],
+  );
   /** Slot the player explicitly chose to (re)fill; otherwise the first empty one. */
   const [armedOverride, setArmedOverride] = useState<MoveSlot | null>(null);
   const [filled, setFilled] = useState<SlotEvent | null>(null);
@@ -33,8 +47,6 @@ export function useMoveSelection(fen: string, enabled: boolean, single = false) 
     setFrom(null);
     setPendingPromotion(null);
     setArmedOverride(null);
-    const only = legal.length === 1 ? legal[0] : undefined;
-    setSlots(only ? { A: toResolved(only), B: null } : EMPTY);
   }, [legal]);
 
   /** Where the next pick goes. null only when both slots are full and none is armed. A single declaration only uses A. */
@@ -56,7 +68,7 @@ export function useMoveSelection(fen: string, enabled: boolean, single = false) 
       playSfx(slot === 'A' ? 'pick_a' : 'pick_b');
       haptics.selection();
     },
-    [armed, slots, single],
+    [armed, slots, single, setSlots],
   );
 
   const onSquarePress = useCallback(
@@ -90,15 +102,18 @@ export function useMoveSelection(fen: string, enabled: boolean, single = false) 
 
   /** Tap a chip: arm it so the next pick fills it; tap again to disarm. */
   const arm = useCallback((slot: MoveSlot) => setArmedOverride((a) => (a === slot ? null : slot)), []);
-  const clear = useCallback((slot: MoveSlot) => {
-    setSlots((s) => ({ ...s, [slot]: null }));
-    setArmedOverride(null);
-  }, []);
+  const clear = useCallback(
+    (slot: MoveSlot) => {
+      setSlots((s) => ({ ...s, [slot]: null }));
+      setArmedOverride(null);
+    },
+    [setSlots],
+  );
   const reset = useCallback(() => {
     setFrom(null);
     setSlots(EMPTY);
     setArmedOverride(null);
-  }, []);
+  }, [setSlots]);
 
   const fromMoves = useMemo(() => (from ? legal.filter((m) => m.from === from) : []), [from, legal]);
   const targets = useMemo(() => [...new Set(fromMoves.map((m) => m.to as Square))], [fromMoves]);

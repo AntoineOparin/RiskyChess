@@ -1,6 +1,9 @@
 import {
   applyEffects,
   applyModeEffects,
+  botBets,
+  placeBet as placeBetIn,
+  validateBet,
   gameOverEffects,
   mathRng,
   pickBotSubmission,
@@ -14,6 +17,7 @@ import {
 import {
   BOT_THINK_MS,
   CLASSIC_RULES,
+  hasMode,
   DISCONNECT_GRACE_MS,
   GAME_TTL_MS,
   START_FEN,
@@ -36,6 +40,9 @@ import {
 import { cryptoRng, hmacRngFor, newClientSeed, newGameCode, newId, newServerSeed, newToken } from '../crypto/coin';
 import type { GameRecord, GameStore } from './GameStore';
 import { viewFor } from './redact';
+import { errorFields, logger } from '../log';
+
+const log = logger('game');
 import { Timers } from './timers';
 
 /** Broadcasts an event to everyone in a game's room. */
@@ -144,8 +151,11 @@ export class GameManager {
       graceDeadlines: {},
       submissions: new Map(),
       turnSeeds: new Map(),
+      betAcks: new Map(),
     };
     this.store.set(record);
+    // The bot places its sealed bets before the game starts, so both views open with them.
+    if (p.mode === 'bot' && hasMode(rules, 'side_bets')) this.placeBotBets(record, other(color));
 
     if (p.mode === 'bot') {
       // Defer so the caller can join the room and receive the ack before events flow.
@@ -154,6 +164,7 @@ export class GameManager {
         this.beginTurn(record);
       });
     }
+    log.info('created', { gameId: id, mode: p.mode, color, rules: rules.modes, wallet: session.wallet });
     return ok({ gameId: id, playerId: human.playerId, playerToken: token, color });
   }
 
@@ -181,6 +192,7 @@ export class GameManager {
       this.announceStart(record);
       this.beginTurn(record);
     });
+    log.info('joined', { gameId: s.id, color, rules: s.rules.modes });
     return ok({ gameId: s.id, playerId: slot.playerId, playerToken: token, color });
   }
 
@@ -214,6 +226,7 @@ export class GameManager {
       this.startTurnClock(record);
     }
     s.updatedAt = Date.now();
+    log.info('rejoined', { gameId: s.id, color, wasDisconnected, status: s.status, turnNumber: s.turnNumber });
     if (wasDisconnected && s.status !== 'finished') this.emit(s.id, 'opponent_reconnected', { gameId: s.id, color });
     return ok({ session: viewFor(s, color), color });
   }
@@ -256,9 +269,37 @@ export class GameManager {
       },
       this.tossDeps(record, sub),
     );
-    if (!resolved.ok) return fail(resolved.error, resolved.message);
+    if (!resolved.ok) {
+      log.info('submission rejected', {
+        gameId: s.id,
+        color,
+        turnNumber: s.turnNumber,
+        error: resolved.error,
+        message: resolved.message,
+        fen: s.fen,
+        moveA: sub.moveA,
+        moveB: sub.moveB,
+        extras: sub.extras ? { ...sub.extras, clientSeed: sub.extras.clientSeed ? '…' : undefined } : undefined,
+        wallet: s.wallet,
+      });
+      return fail(resolved.error, resolved.message);
+    }
 
     const { result } = resolved;
+    log.debug('turn resolved', {
+      gameId: s.id,
+      turnNumber: result.turnNumber,
+      mover: result.mover,
+      pair: [result.moveA.lan, result.moveB?.lan ?? null],
+      executed: result.executed.lan,
+      odds: result.odds.A,
+      // The seed is revealed in this very result, so its commitment and the roll are safe to log.
+      roll: result.coin?.roll,
+      method: result.coin?.method,
+      effects: result.effects.map((e) => e.kind + ('reason' in e ? `:${e.reason}` : '')),
+      walletAfter: result.walletAfter,
+      outcome: result.outcome,
+    });
     // Revealed in the result now; the secret has no further use.
     record.turnSeeds.delete(s.turnNumber);
     delete s.pendingCommitment;
@@ -282,11 +323,39 @@ export class GameManager {
     return ack;
   }
 
-  /** Side Bets. Plan 05 implements placement; until then every game rejects it. */
-  placeBet(_color: Color, p: PlaceBetPayload): Ack<{ bet: PropBet }> {
+  /**
+   * Places a sealed side bet: synchronous (no interleaving with a turn),
+   * idempotent per clientBetId. The bettor gets bet_placed on their own
+   * channel; both seats get a state_sync of their own (redacted) view.
+   */
+  placeBet(color: Color, p: PlaceBetPayload): Ack<{ bet: PropBet }> {
     const record = this.store.get(p.gameId);
     if (!record) return fail('GAME_NOT_FOUND', 'No game with that code');
-    return fail('MODE_DISABLED', 'Side bets are not available in this game');
+    const key = `${color}:${p.clientBetId}`;
+    const cached = record.betAcks.get(key);
+    if (cached) return cached;
+    const s = record.session;
+    if (s.status === 'waiting_for_opponent') return fail('GAME_NOT_ACTIVE', 'The game has not started');
+    const req = { kind: p.kind, stake: p.stake, ...(p.params ? { params: p.params } : {}) };
+    const bad = validateBet(s, color, req, s.status === 'finished');
+    if (bad) {
+      log.info('bet rejected', { gameId: s.id, color, ...req, turnNumber: s.turnNumber, error: bad.error, message: bad.message, wallet: s.wallet });
+      return fail(bad.error, bad.message);
+    }
+
+    const placed = placeBetIn(s, color, req, newId());
+    s.modeState = placed.modeState;
+    if (s.wallet) s.wallet = applyEffects(s.wallet, placed.effects);
+    s.updatedAt = Date.now();
+    const ack = ok({ bet: structuredClone(placed.bet) });
+    record.betAcks.set(key, ack);
+    log.info('bet placed', { gameId: s.id, color, kind: placed.bet.kind, stake: placed.bet.stake, payoutX100: placed.bet.payoutX100, turnNumber: s.turnNumber });
+
+    this.emitTo(s.id, color, 'bet_placed', { gameId: s.id, bet: structuredClone(placed.bet) });
+    for (const c of ['w', 'b'] as const) {
+      if (s.players[c] && !s.players[c]!.isBot) this.emitTo(s.id, c, 'state_sync', viewFor(s, c));
+    }
+    return ack;
   }
 
   resign(gameId: string, color: Color): Ack<Record<string, never>> {
@@ -348,6 +417,16 @@ export class GameManager {
     };
   }
 
+  private placeBotBets(record: GameRecord, color: Color): void {
+    for (const req of botBets(record.session, color, this.opts.rng)) {
+      if (validateBet(record.session, color, req)) continue;
+      const placed = placeBetIn(record.session, color, req, newId());
+      record.session.modeState = placed.modeState;
+      if (record.session.wallet) record.session.wallet = applyEffects(record.session.wallet, placed.effects);
+      log.debug('bot bet placed', { gameId: record.session.id, color, kind: req.kind, stake: req.stake });
+    }
+  }
+
   /** Commits this turn's seed before anyone can submit: its hash goes out with turn_started. */
   private commitSeed(record: GameRecord): void {
     const s = record.session;
@@ -402,6 +481,7 @@ export class GameManager {
     const s = record.session;
     const graceEndsAt = Date.now() + this.opts.graceMs;
     record.graceDeadlines[color] = graceEndsAt;
+    log.info('player disconnected; grace started', { gameId: s.id, color, graceEndsAt });
     this.timers.set(`${s.id}:grace:${color}`, this.opts.graceMs, () => this.expireGrace(s.id, color));
     this.emit(s.id, 'opponent_disconnected', { gameId: s.id, color, graceEndsAt });
   }
@@ -437,8 +517,14 @@ export class GameManager {
     const { turnNumber, turn } = s;
     this.timers.set(`${s.id}:bot`, delay, () => {
       if (s.status !== 'awaiting_submission' || s.turnNumber !== turnNumber) return;
-      const pick = pickBotSubmission(s.fen, s, this.opts.rng, 'greedy');
-      this.submit(turn, { gameId: s.id, turnNumber, clientSubmissionId: newId(), ...pick });
+      // A bot that can't move would stall the game forever: never let that pass silently.
+      try {
+        const pick = pickBotSubmission(s.fen, s, this.opts.rng, 'greedy');
+        const res = this.submit(turn, { gameId: s.id, turnNumber, clientSubmissionId: newId(), ...pick });
+        if (!res.ok) log.error('bot submission rejected', { gameId: s.id, turnNumber, fen: s.fen, pick, error: res.error, message: res.message, rules: s.rules.modes, wallet: s.wallet });
+      } catch (e) {
+        log.error('bot turn threw', { gameId: s.id, turnNumber, fen: s.fen, rules: s.rules.modes, ...errorFields(e) });
+      }
     });
   }
 
@@ -446,6 +532,7 @@ export class GameManager {
   private finish(record: GameRecord, outcome: GameOutcome, onBoard = false): void {
     const s = record.session;
     const effects = onBoard ? [] : gameOverEffects(s, outcome);
+    log.info('game over', { gameId: s.id, outcome, plies: s.history.length, settled: effects.filter((e) => e.kind === 'bet_settled').length, rules: s.rules.modes });
     if (effects.length) {
       if (s.wallet) s.wallet = applyEffects(s.wallet, effects);
       s.modeState = applyModeEffects(s.modeState, effects);
@@ -465,5 +552,14 @@ export class GameManager {
       ...(effects.length ? { effects } : {}),
       ...(s.wallet ? { walletAfter: s.wallet } : {}),
     });
+    // Every bet is unsealed once the game is over.
+    if (hasMode(s.rules, 'side_bets')) {
+      const bets: Partial<Record<Color, PropBet[]>> = {};
+      for (const c of ['w', 'b'] as const) {
+        const b = s.modeState.bets?.[c];
+        if (Array.isArray(b)) bets[c] = structuredClone(b);
+      }
+      this.emit(s.id, 'bets_revealed', { gameId: s.id, bets });
+    }
   }
 }

@@ -38,8 +38,18 @@ export function rankBotMoves(fen: string, rng: Rng, difficulty: BotDifficulty = 
   if (legal.length === 1) return [{ move: legal[0]!, score: 0 }];
   return difficulty === 'random'
     ? shuffle(legal, rng).map((move) => ({ move, score: 0 }))
-    : legal.map((move) => ({ move, score: scoreMove(fen, move) + rng.int(1000) / 2000 })).sort((x, y) => y.score - x.score);
+    : legal
+        .map((move) => ({ move, score: scoreMove(fen, move) + castleBonus(move) + rng.int(1000) / 2000 }))
+        .sort((x, y) => y.score - x.score);
 }
+
+/**
+ * The greedy bot values getting its king castled at about a pawn, as people
+ * do. Without it the one-ply heuristic almost never castles, which also made
+ * simulated Side Bets prices unrealistic.
+ */
+const CASTLE_BONUS = 1;
+const castleBonus = (m: Move) => (m.flags.includes('k') || m.flags.includes('q') ? CASTLE_BONUS : 0);
 
 const topPair = (ranked: readonly RankedMove[]): BotPair =>
   ranked.length === 1

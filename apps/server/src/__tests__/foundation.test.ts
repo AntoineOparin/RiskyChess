@@ -129,7 +129,8 @@ describe('redaction', () => {
 
     t.manager.resign(id, 'b');
     const after = t.manager.getState(id, 'b');
-    expect(after.ok && after.data.session.modeState.bets?.w).toEqual([bet]);
+    // Unsealed at game over (and settled: nobody promoted).
+    expect(after.ok && after.data.session.modeState.bets?.w).toEqual([{ ...bet, status: 'lost' }]);
   });
 
   it('is a deep copy', () => {
@@ -140,11 +141,13 @@ describe('redaction', () => {
   });
 });
 
-describe('side bets placeholder', () => {
-  it('rejects place_bet with MODE_DISABLED', async () => {
+describe('side bets gating', () => {
+  it('rejects place_bet with MODE_DISABLED unless Side Bets is on', async () => {
     const t = setup();
-    const id = await pvp(t, HIGH_ROLLER);
-    expect(t.manager.placeBet('w', { gameId: id, clientBetId: 'x', kind: 'opp_promotes', stake: 5 })).toMatchObject({ ok: false, error: 'MODE_DISABLED' });
+    const classic = await pvp(t);
+    expect(t.manager.placeBet('w', { gameId: classic, clientBetId: 'x', kind: 'opp_promotes', stake: 5 })).toMatchObject({ ok: false, error: 'MODE_DISABLED' });
+    const high = await pvp(t, HIGH_ROLLER);
+    expect(t.manager.placeBet('w', { gameId: high, clientBetId: 'x', kind: 'opp_promotes', stake: 5 }).ok).toBe(true);
   });
 });
 

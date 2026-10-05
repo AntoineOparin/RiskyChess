@@ -1,6 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { initSfx } from '../lib/sfx';
 import { colors } from '../lib/theme';
+
+// Load every sound effect once, before any screen needs one.
+initSfx();
 
 export default function RootLayout() {
   return (

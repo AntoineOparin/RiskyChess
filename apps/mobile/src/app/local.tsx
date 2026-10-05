@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { Color } from '@risky-chess/shared';
 import { GameView } from '../components/GameView';
 import { useLocalBotGame } from '../hooks/useLocalBotGame';
-import { colors } from '../lib/theme';
 
 export default function LocalGame() {
   const [color] = useState<Color>(() => (Math.random() < 0.5 ? 'w' : 'b'));
@@ -21,18 +20,12 @@ export default function LocalGame() {
         error={game.error}
         onSubmit={game.play}
         onResign={game.resign}
+        outcomeAction={{ label: 'Play again', onPress: game.restart }}
       />
-      {game.outcome && (
-        <Pressable onPress={game.restart} style={styles.again}>
-          <Text style={styles.againText}>Play again</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  again: { margin: 16, backgroundColor: colors.slotA, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  againText: { color: '#111', fontWeight: '800', fontSize: 16 },
 });

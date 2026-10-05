@@ -2,10 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { mathRng, pickBotPair, resolveTurn, rngTosser } from '@risky-chess/engine';
 import { BOT_THINK_MS, START_FEN, type Color, type GameOutcome, type MoveInput, type TurnResult } from '@risky-chess/shared';
 import { other, turnOf } from '../lib/chess';
+import { revealDurationMs } from '../lib/motion';
 
 const tosser = rngTosser(mathRng, 'local');
-/** Wait for the previous coin animation before the bot "thinks". */
-const BOT_DELAY_MS = 2200 + BOT_THINK_MS.min;
 
 interface LocalState {
   fen: string;
@@ -50,7 +49,9 @@ export function useLocalBotGame(humanColor: Color) {
   const botToMove = turnOf(state.fen) === botColor && !state.outcome;
   useEffect(() => {
     if (!botToMove) return;
-    const delay = state.history.length === 0 ? BOT_THINK_MS.min : BOT_DELAY_MS;
+    // Let the player's reveal finish before the bot "thinks".
+    const last = state.history.at(-1);
+    const delay = BOT_THINK_MS.min + (last ? revealDurationMs(last, true) : 0);
     const t = setTimeout(() => {
       const pair = pickBotPair(state.fen, mathRng, 'greedy');
       play(pair.moveA, pair.moveB);

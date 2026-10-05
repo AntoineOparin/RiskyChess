@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { MoveInput } from '@risky-chess/shared';
 import { newSubmissionId } from '../lib/chess';
 import { loadSeat } from '../net/seats';
@@ -12,7 +13,17 @@ const SUBMIT_ATTEMPTS = 3;
  * and after every reconnect, so a dropped socket resumes the same seat.
  */
 export function useOnlineGame(gameId: string) {
-  const store = useGameStore();
+  // Only the fields the screen renders; actions are read via getState().
+  const state = useGameStore(
+    useShallow((s) => ({
+      session: s.session,
+      color: s.color,
+      connected: s.connected,
+      submitting: s.submitting,
+      error: s.error,
+      opponentGraceEndsAt: s.opponentGraceEndsAt,
+    })),
+  );
 
   useEffect(() => {
     const socket = getSocket();
@@ -89,5 +100,5 @@ export function useOnlineGame(gameId: string) {
     if (!res.ok) useGameStore.getState().set({ error: res.message });
   }, [gameId]);
 
-  return { ...store, submit, resign };
+  return { ...state, submit, resign };
 }

@@ -7,6 +7,7 @@
     "@risky-chess/shared": "workspace:*",
     "chess.js": "^1.4.0",
     "expo": "~57.0.26",
+    "expo-audio": "~57.0.5",
     "expo-constants": "~57.0.20",
     "expo-haptics": "~57.0.3",
     "expo-linking": "~57.0.11",
@@ -15,8 +16,10 @@
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.2",
+    "react-native-worklets": "0.10.1",
     "socket.io-client": "^4.8.4",
     "zustand": "^5.0.15"
   },

@@ -1,47 +1,47 @@
-import { memo, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Chess } from 'chess.js';
-import type { Color, MoveSlot, PieceSymbol, Square } from '@risky-chess/shared';
+import type { Color, PieceSymbol, Square as Sq } from '@risky-chess/shared';
 import { boardSquares, isLightSquare } from '../../lib/chess';
-import { colors, slotColor } from '../../lib/theme';
-import { Piece } from './Piece';
+import type { Marker } from './BoardOverlay';
+import { Square, type TargetMark } from './Square';
 
-export interface Marker {
-  from: Square;
-  to: Square;
-}
+export type { Marker } from './BoardOverlay';
 
 export interface BoardProps {
   fen: string;
   orientation: Color;
   size: number;
-  selected?: Square | null;
-  targets?: readonly Square[];
-  slots?: Partial<Record<MoveSlot, Marker | null>>;
+  selected?: Sq | null;
+  targets?: readonly Sq[];
+  /** Targets whose move is already in a slot: drawn hollow. */
+  takenTargets?: readonly Sq[];
   lastMove?: Marker | null;
-  /** The candidate the coin rejected, drawn faintly after a turn resolves. */
-  ghost?: Marker | null;
-  onSquarePress?: (sq: Square) => void;
+  onSquarePress?: (sq: Sq) => void;
 }
 
-function BoardImpl({ fen, orientation, size, selected, targets, slots, lastMove, ghost, onSquarePress }: BoardProps) {
+/**
+ * The 8×8 grid. Each square is memoized on primitive props, so a tap
+ * re-renders only the squares whose highlight changed. Arrows and reveals are
+ * drawn by BoardOverlay / TossReveal on top.
+ */
+function BoardImpl({ fen, orientation, size, selected, targets, takenTargets, lastMove, onSquarePress }: BoardProps) {
   const cell = size / 8;
   const pieces = useMemo(() => {
-    const map = new Map<Square, { type: PieceSymbol; color: Color }>();
+    const map = new Map<Sq, { type: PieceSymbol; color: Color }>();
     for (const row of new Chess(fen).board()) for (const p of row) if (p) map.set(p.square, { type: p.type, color: p.color });
     return map;
   }, [fen]);
   const rows = useMemo(() => boardSquares(orientation), [orientation]);
   const targetSet = useMemo(() => new Set(targets ?? []), [targets]);
+  const takenSet = useMemo(() => new Set(takenTargets ?? []), [takenTargets]);
 
-  const slotAt = (sq: Square): { slot: MoveSlot; role: 'from' | 'to' } | null => {
-    for (const slot of ['A', 'B'] as const) {
-      const mk = slots?.[slot];
-      if (mk?.to === sq) return { slot, role: 'to' };
-      if (mk?.from === sq) return { slot, role: 'from' };
-    }
-    return null;
-  };
+  // One stable handler for every square; the latest callback is read at press time.
+  const pressRef = useRef(onSquarePress);
+  useEffect(() => {
+    pressRef.current = onSquarePress;
+  }, [onSquarePress]);
+  const onPress = useCallback((sq: Sq) => pressRef.current?.(sq), []);
 
   return (
     <View style={{ width: size, height: size }}>
@@ -49,48 +49,22 @@ function BoardImpl({ fen, orientation, size, selected, targets, slots, lastMove,
         <View key={ri} style={styles.row}>
           {row.map((sq, fi) => {
             const piece = pieces.get(sq);
-            const mark = slotAt(sq);
-            const isLast = lastMove && (lastMove.from === sq || lastMove.to === sq);
-            const isGhost = ghost && (ghost.from === sq || ghost.to === sq);
-            const light = isLightSquare(sq);
+            const target: TargetMark = !targetSet.has(sq) ? null : piece ? 'ring' : takenSet.has(sq) ? 'taken' : 'dot';
             return (
-              <Pressable
+              <Square
                 key={sq}
-                accessibilityLabel={sq}
-                onPress={onSquarePress ? () => onSquarePress(sq) : undefined}
-                style={[{ width: cell, height: cell, backgroundColor: light ? colors.lightSquare : colors.darkSquare }]}
-              >
-                {isLast && <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.lastMove }]} />}
-                {selected === sq && <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.selected }]} />}
-                {isGhost && <View style={[StyleSheet.absoluteFill, styles.ghost]} />}
-                {mark && (
-                  <View
-                    style={[
-                      StyleSheet.absoluteFill,
-                      { borderColor: slotColor(mark.slot), borderWidth: mark.role === 'to' ? 4 : 2 },
-                    ]}
-                  />
-                )}
-                {piece && <Piece type={piece.type} color={piece.color} size={cell} />}
-                {targetSet.has(sq) && (
-                  <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.center]}>
-                    <View
-                      style={
-                        piece
-                          ? [styles.captureRing, { width: cell * 0.9, height: cell * 0.9, borderRadius: cell }]
-                          : [styles.dot, { width: cell * 0.3, height: cell * 0.3, borderRadius: cell }]
-                      }
-                    />
-                  </View>
-                )}
-                {mark?.role === 'to' && (
-                  <View style={[styles.badge, { backgroundColor: slotColor(mark.slot) }]}>
-                    <Text style={styles.badgeText}>{mark.slot}</Text>
-                  </View>
-                )}
-                {fi === 0 && <Text style={[styles.coord, styles.rank, { color: light ? colors.darkSquare : colors.lightSquare }]}>{sq[1]}</Text>}
-                {ri === 7 && <Text style={[styles.coord, styles.file, { color: light ? colors.darkSquare : colors.lightSquare }]}>{sq[0]}</Text>}
-              </Pressable>
+                sq={sq}
+                cell={cell}
+                light={isLightSquare(sq)}
+                pieceType={piece?.type ?? null}
+                pieceColor={piece?.color ?? null}
+                lastMove={lastMove?.from === sq || lastMove?.to === sq}
+                selected={selected === sq}
+                target={target}
+                rankLabel={fi === 0}
+                fileLabel={ri === 7}
+                onPress={onPress}
+              />
             );
           })}
         </View>
@@ -103,13 +77,4 @@ export const Board = memo(BoardImpl);
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  dot: { backgroundColor: colors.target },
-  captureRing: { borderWidth: 4, borderColor: colors.target },
-  ghost: { borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.45)' },
-  badge: { position: 'absolute', top: 1, right: 1, paddingHorizontal: 4, borderRadius: 6 },
-  badgeText: { fontSize: 10, fontWeight: '800', color: '#111' },
-  coord: { position: 'absolute', fontSize: 9, fontWeight: '700' },
-  rank: { top: 1, left: 2 },
-  file: { bottom: 0, right: 3 },
 });

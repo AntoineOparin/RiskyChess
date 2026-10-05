@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 import { GameManager, type GameManagerOptions } from './game/GameManager';
 import { InMemoryGameStore } from './game/GameStore';
 import { routes } from './http/routes';
-import { registerHandlers, room, type GameServer } from './socket/handlers';
+import { registerHandlers, room, seatRoom, type GameServer } from './socket/handlers';
 
 export interface App {
   http: HttpServer;
@@ -25,6 +25,7 @@ export function createApp(opts: Partial<GameManagerOptions> = {}): App {
     new InMemoryGameStore(),
     (gameId, event, ...args) => io.to(room(gameId)).emit(event, ...args),
     opts,
+    (gameId, color, event, ...args) => io.to(seatRoom(gameId, color)).emit(event, ...args),
   );
   registerHandlers(io, manager);
 

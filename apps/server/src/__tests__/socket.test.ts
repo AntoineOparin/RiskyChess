@@ -101,4 +101,22 @@ describe('socket integration', () => {
     );
     expect(ack.ok).toBe(true);
   });
+
+  it('creates a High Roller game, delivers each seat its own start, and gates bets', async () => {
+    const [a, b] = [await client(), await client()];
+    const rules = { modes: ['loaded_dice', 'odds_market', 'all_in', 'side_bets'] as const };
+    const created = await call<{ gameId: string }>((ack) =>
+      a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w', rules: { modes: [...rules.modes] } }, ack as never),
+    );
+    if (!created.ok) throw new Error(created.message);
+    const gameId = created.data.gameId;
+    const [sa, sb] = [next(a, 'game_started'), next(b, 'game_started')];
+    await call((ack) => b.emit('join_game', { gameId, displayName: 'Bo' }, ack as never));
+    for (const s of await Promise.all([sa, sb])) expect(s).toMatchObject({ rules, wallet: { w: 100, b: 100 } });
+
+    const bet = await call((ack) => a.emit('place_bet', { gameId, clientBetId: 'x1', kind: 'opp_promotes', stake: 5 }, ack as never));
+    expect(bet).toMatchObject({ ok: false, error: 'MODE_DISABLED' });
+    const badRules = await call((ack) => a.emit('create_game', { mode: 'bot', displayName: 'A', rules: { modes: ['chaos'] } } as never, ack as never));
+    expect(badRules).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
+  });
 });

@@ -13,6 +13,11 @@ export const colors = {
   target: 'rgba(20, 20, 20, 0.28)',
   danger: '#E5484D',
   success: '#46A758',
+  chip: '#E9C46A',
+  border: '#343944',
 } as const;
+
+/** The chip glyph. Chips are play money only. */
+export const CHIP = '◎';
 
 export const slotColor = (slot: 'A' | 'B') => (slot === 'A' ? colors.slotA : colors.slotB);

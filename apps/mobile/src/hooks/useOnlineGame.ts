@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import type { MoveInput } from '@risky-chess/shared';
+import type { MoveInput, TurnExtras } from '@risky-chess/shared';
 import { newSubmissionId } from '../lib/chess';
 import { loadSeat } from '../net/seats';
 import { getSocket, request } from '../net/socket';
@@ -58,7 +58,7 @@ export function useOnlineGame(gameId: string) {
     socket.on('turn_resolved', (r) => {
       if (mine(r.gameId) && st().applyTurnResult(r) === 'gap') void sync();
     });
-    socket.on('game_over', (p) => mine(p.gameId) && st().applyGameOver(p.outcome));
+    socket.on('game_over', (p) => mine(p.gameId) && st().applyGameOver(p.outcome, p));
     socket.on('opponent_disconnected', (p) => mine(p.gameId) && st().setOpponentPresence(p.color, p.graceEndsAt));
     socket.on('opponent_reconnected', (p) => mine(p.gameId) && st().setOpponentPresence(p.color, null));
 
@@ -74,12 +74,12 @@ export function useOnlineGame(gameId: string) {
   }, [gameId]);
 
   const submit = useCallback(
-    async (moveA: MoveInput, moveB: MoveInput | null) => {
+    async (moveA: MoveInput, moveB: MoveInput | null, extras?: TurnExtras) => {
       const s = useGameStore.getState().session;
       if (!s) return;
       useGameStore.getState().set({ submitting: true, error: null });
       // One id across retries: the server dedupes, so a lost ack never double-resolves.
-      const payload = { gameId, turnNumber: s.turnNumber, clientSubmissionId: newSubmissionId(), moveA, moveB };
+      const payload = { gameId, turnNumber: s.turnNumber, clientSubmissionId: newSubmissionId(), moveA, moveB, ...(extras ? { extras } : {}) };
       let res = await request('submit_moves', payload);
       for (let i = 1; i < SUBMIT_ATTEMPTS && !res.ok && res.error === 'NETWORK'; i++) {
         res = await request('submit_moves', payload);

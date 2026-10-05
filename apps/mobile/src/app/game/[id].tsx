@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { isClassic } from '@risky-chess/shared';
 import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { GameView } from '../../components/GameView';
+import { RulesSheet } from '../../components/RulesSheet';
 import { useOnlineGame } from '../../hooks/useOnlineGame';
 import { colors } from '../../lib/theme';
 
@@ -17,10 +19,12 @@ function useNow(active: boolean) {
 }
 
 export default function OnlineGame() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, joined } = useLocalSearchParams<{ id: string; joined?: string }>();
   const game = useOnlineGame(id);
   const { session, color } = game;
   const now = useNow(game.opponentGraceEndsAt !== null);
+  // A joiner didn't pick the table: show its rules once, before the first move.
+  const [rulesSeen, setRulesSeen] = useState(false);
 
   if (!session || !color) {
     return (
@@ -51,6 +55,7 @@ export default function OnlineGame() {
       : null;
 
   return (
+    <>
     <GameView
       fen={session.fen}
       myColor={color}
@@ -61,9 +66,24 @@ export default function OnlineGame() {
       banner={banner}
       submitting={game.submitting}
       error={game.error}
-      onSubmit={(a, b) => void game.submit(a, b)}
+      onSubmit={(a, b, extras) => void game.submit(a, b, extras)}
       onResign={() => void game.resign()}
+      table={{
+        gameId: session.id,
+        rules: session.rules,
+        wallet: session.wallet,
+        modeState: session.modeState,
+        turnNumber: session.turnNumber,
+        online: true,
+      }}
     />
+    <RulesSheet
+      visible={joined === '1' && !rulesSeen && !isClassic(session.rules) && session.history.length === 0 && !session.outcome}
+      rules={session.rules}
+      closeLabel="I'm in"
+      onClose={() => setRulesSeen(true)}
+    />
+    </>
   );
 }
 

@@ -4,6 +4,7 @@ import {
   gameRefSchema,
   joinGameSchema,
   moveSubmissionSchema,
+  placeBetSchema,
   rejoinGameSchema,
   type Ack,
   type ClientToServerEvents,
@@ -21,6 +22,8 @@ export type GameServer = Server<ClientToServerEvents, ServerToClientEvents, Reco
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
 export const room = (gameId: string) => `game:${gameId}`;
+/** A seat's private channel: redacted views and bet acks go only here. */
+export const seatRoom = (gameId: string, color: Color) => `game:${gameId}:${color}`;
 
 /** Structural slice of a zod schema, so this package needn't depend on zod directly. */
 interface Schema<P> {
@@ -51,7 +54,7 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
 
     const seat = (gameId: string, color: Color) => {
       socket.data.seats.set(gameId, color);
-      void socket.join(room(gameId));
+      void socket.join([room(gameId), seatRoom(gameId, color)]);
     };
     const seatOf = (gameId: string) => socket.data.seats.get(gameId);
 
@@ -103,8 +106,18 @@ export function registerHandlers(io: GameServer, manager: GameManager): void {
     socket.on(
       'request_state',
       handle(gameRefSchema, (p) => {
-        if (!seatOf(p.gameId)) return { ok: false, error: 'UNAUTHORIZED', message: 'You are not seated in this game' };
-        return manager.getState(p.gameId);
+        const color = seatOf(p.gameId);
+        if (!color) return { ok: false, error: 'UNAUTHORIZED', message: 'You are not seated in this game' };
+        return manager.getState(p.gameId, color);
+      }),
+    );
+
+    socket.on(
+      'place_bet',
+      handle(placeBetSchema, (p) => {
+        const color = seatOf(p.gameId);
+        if (!color) return { ok: false, error: 'UNAUTHORIZED', message: 'You are not seated in this game' };
+        return manager.placeBet(color, p);
       }),
     );
 

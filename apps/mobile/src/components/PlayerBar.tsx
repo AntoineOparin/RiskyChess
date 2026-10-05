@@ -1,7 +1,9 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import type { Color, PieceSymbol } from '@risky-chess/shared';
-import { colors } from '../lib/theme';
+import { CHIP_PULSE_MS } from '../lib/motion';
+import { CHIP, colors } from '../lib/theme';
 import { Piece } from './Board/Piece';
 
 const GLYPH = 16;
@@ -13,10 +15,14 @@ interface Props {
   capturedColor: Color;
   /** Material relative to the opponent: "+3" when ahead, "-3" when behind, hidden when level. */
   score: number;
+  /** Chip count when a chip mode is on. */
+  chips?: number | undefined;
+  /** Mode additions (e.g. bets), drawn after the chips. */
+  accessory?: ReactNode;
 }
 
 /** A player's name with the pieces they have captured and their material balance. */
-function PlayerBarImpl({ name, captured, capturedColor, score }: Props) {
+function PlayerBarImpl({ name, captured, capturedColor, score, chips, accessory }: Props) {
   return (
     <View style={styles.row}>
       <Text numberOfLines={1} style={styles.name}>
@@ -33,7 +39,28 @@ function PlayerBarImpl({ name, captured, capturedColor, score }: Props) {
       {score !== 0 && (
         <Text style={[styles.score, score > 0 ? styles.ahead : styles.behind]}>{score > 0 ? `+${score}` : `−${-score}`}</Text>
       )}
+      <View style={styles.spacer} />
+      {accessory}
+      {chips !== undefined && <Chips value={chips} />}
     </View>
+  );
+}
+
+/** "◎ 87", pulsing briefly whenever the value changes. */
+function Chips({ value }: { value: number }) {
+  const reduceMotion = useReducedMotion();
+  const pulse = useSharedValue(1);
+  const prev = useRef(value);
+  useEffect(() => {
+    if (prev.current === value) return;
+    prev.current = value;
+    if (!reduceMotion) pulse.value = withSequence(withTiming(0.35, { duration: CHIP_PULSE_MS }), withTiming(1, { duration: CHIP_PULSE_MS }));
+  }, [value, reduceMotion, pulse]);
+  const style = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  return (
+    <Animated.Text style={[styles.chips, style]} accessibilityLabel={`${value} chips`}>
+      {CHIP} {value}
+    </Animated.Text>
   );
 }
 
@@ -46,4 +73,6 @@ const styles = StyleSheet.create({
   score: { fontWeight: '800', fontSize: 13, fontVariant: ['tabular-nums'] },
   ahead: { color: colors.success },
   behind: { color: colors.danger },
+  spacer: { flex: 1 },
+  chips: { color: colors.chip, fontWeight: '800', fontSize: 14, fontVariant: ['tabular-nums'] },
 });

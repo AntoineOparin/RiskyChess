@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -31,9 +31,15 @@ interface Props {
   onArm: (slot: MoveSlot) => void;
   onClear: (slot: MoveSlot) => void;
   onSubmit: () => void;
+  /** Mode text on each chip (odds, payout). */
+  badge?: (slot: MoveSlot) => ReactNode;
+  /** Replaces the submit label (e.g. an All-In declaration). */
+  submitLabel?: string | null;
+  /** Hides slot B (a single-move declaration). */
+  singleSlot?: boolean;
 }
 
-export function MoveSlotBar({ slots, armed, filled, rejected, forced, active, canSubmit, locked, onArm, onClear, onSubmit }: Props) {
+export function MoveSlotBar({ slots, armed, filled, rejected, forced, active, canSubmit, locked, onArm, onClear, onSubmit, badge, submitLabel, singleSlot }: Props) {
   const submit = () => {
     playSfx('lock');
     haptics.light();
@@ -41,7 +47,9 @@ export function MoveSlotBar({ slots, armed, filled, rejected, forced, active, ca
   };
   const label = locked
     ? '🔒 Locked in…'
-    : forced
+    : submitLabel
+      ? submitLabel
+      : forced
       ? `Play forced move${slots.A ? `: ${slots.A.san}` : ''}`
       : slots.A && slots.B
         ? `Toss: ${slots.A.san} or ${slots.B.san}`
@@ -53,7 +61,7 @@ export function MoveSlotBar({ slots, armed, filled, rejected, forced, active, ca
         <Text style={styles.forced}>Only one legal move: it plays without a coin toss.</Text>
       ) : (
         <View style={styles.row}>
-          {(['A', 'B'] as const).map((slot) => (
+          {(singleSlot ? (['A'] as const) : (['A', 'B'] as const)).map((slot) => (
             <SlotChip
               key={slot}
               slot={slot}
@@ -65,6 +73,7 @@ export function MoveSlotBar({ slots, armed, filled, rejected, forced, active, ca
               rejectedN={rejected?.slot === slot ? rejected.n : 0}
               onArm={onArm}
               onClear={onClear}
+              badge={badge?.(slot)}
             />
           ))}
         </View>
@@ -93,9 +102,10 @@ interface ChipProps {
   rejectedN: number;
   onArm: (slot: MoveSlot) => void;
   onClear: (slot: MoveSlot) => void;
+  badge?: ReactNode;
 }
 
-function SlotChip({ slot, move, armed, disabled, locked, filledN, rejectedN, onArm, onClear }: ChipProps) {
+function SlotChip({ slot, move, armed, disabled, locked, filledN, rejectedN, onArm, onClear, badge }: ChipProps) {
   const reduceMotion = useReducedMotion();
   const glow = useSharedValue(0);
   const shake = useSharedValue(0);
@@ -142,6 +152,7 @@ function SlotChip({ slot, move, armed, disabled, locked, filledN, rejectedN, onA
         <Text numberOfLines={1} style={move ? styles.san : styles.placeholder}>
           {move ? move.san : armed ? 'pick on board' : 'empty'}
         </Text>
+        {badge}
         {locked ? (
           <Text style={styles.clear}>🔒</Text>
         ) : move && !disabled ? (

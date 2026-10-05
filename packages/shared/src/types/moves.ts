@@ -1,3 +1,5 @@
+import type { TurnExtras } from './modes';
+
 export type Color = 'w' | 'b';
 export type File = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h';
 export type Rank = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -31,8 +33,9 @@ export interface MoveSubmission {
   /** Idempotency key so a retried emit never resolves a turn twice. */
   clientSubmissionId: string;
   moveA: MoveInput;
-  /** null only when the position has exactly one legal move (forced turn). */
+  /** null only on a forced turn, or when `extras.allIn` declares a single capture. */
   moveB: MoveInput | null;
+  extras?: TurnExtras;
 }
 
 export interface CoinToss {
@@ -42,4 +45,8 @@ export interface CoinToss {
   commitment?: string;
   /** Revealed after resolution so clients can verify the toss. */
   serverSeed?: string;
+  /** The submitter's entropy mixed into the roll (commit-reveal only). */
+  clientSeed?: string;
+  /** The 0–9999 draw; slot A executes when roll < odds.A. Absent when a test seam forced the slot. */
+  roll?: number;
 }

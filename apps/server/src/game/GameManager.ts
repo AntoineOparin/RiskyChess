@@ -1,6 +1,19 @@
-import { mathRng, pickBotPair, resolveTurn, type Rng, type Tosser } from '@risky-chess/engine';
+import {
+  applyEffects,
+  applyModeEffects,
+  gameOverEffects,
+  mathRng,
+  pickBotSubmission,
+  resolveTurn,
+  sideToMove,
+  startingWallet,
+  type ResolveDeps,
+  type Rng,
+  type Tosser,
+} from '@risky-chess/engine';
 import {
   BOT_THINK_MS,
+  CLASSIC_RULES,
   DISCONNECT_GRACE_MS,
   GAME_TTL_MS,
   START_FEN,
@@ -13,13 +26,16 @@ import {
   type GameSession,
   type JoinGamePayload,
   type MoveSubmission,
+  type PlaceBetPayload,
   type PlayerSlot,
+  type PropBet,
   type RejoinGamePayload,
   type SeatGrant,
   type ServerToClientEvents,
 } from '@risky-chess/shared';
-import { cryptoRng, cryptoTosser, newGameCode, newId, newToken } from '../crypto/coin';
+import { cryptoRng, newGameCode, newId, newToken } from '../crypto/coin';
 import type { GameRecord, GameStore } from './GameStore';
+import { viewFor } from './redact';
 import { Timers } from './timers';
 
 /** Broadcasts an event to everyone in a game's room. */
@@ -29,12 +45,23 @@ export type Emit = <E extends keyof ServerToClientEvents>(
   ...args: Parameters<ServerToClientEvents[E]>
 ) => void;
 
+/** Sends an event to one seat's private channel. */
+export type EmitTo = <E extends keyof ServerToClientEvents>(
+  gameId: string,
+  color: Color,
+  event: E,
+  ...args: Parameters<ServerToClientEvents[E]>
+) => void;
+
 export interface GameManagerOptions {
   graceMs: number;
   turnTimeoutMs: number | null;
   botThinkMs: { min: number; max: number };
-  tosser: Tosser;
-  /** Drives bot move variety and seat assignment; tosses always use `tosser`. */
+  /** Source of every authoritative 0–9999 toss roll. */
+  tossRng: Rng;
+  /** Legacy test seam: decides the slot directly, bypassing the roll. */
+  tosser?: Tosser;
+  /** Drives bot move variety and seat assignment; never tosses. */
   rng: Rng;
   ttlMs: number;
 }
@@ -53,16 +80,21 @@ export class GameManager {
   private readonly timers = new Timers();
   private readonly opts: GameManagerOptions;
 
+  private readonly emitTo: EmitTo;
+
   constructor(
     private readonly store: GameStore,
     private readonly emit: Emit,
     opts: Partial<GameManagerOptions> = {},
+    /** Per-seat channel. Without one, seat events fall back to the room (tests only). */
+    emitTo?: EmitTo,
   ) {
+    this.emitTo = emitTo ?? ((gameId, _color, event, ...args) => this.emit(gameId, event, ...args));
     this.opts = {
       graceMs: DISCONNECT_GRACE_MS,
       turnTimeoutMs: TURN_TIMEOUT_MS,
       botThinkMs: BOT_THINK_MS,
-      tosser: cryptoTosser,
+      tossRng: cryptoRng,
       rng: cryptoRng,
       ttlMs: GAME_TTL_MS,
       ...opts,
@@ -84,9 +116,14 @@ export class GameManager {
       players[other(color)] = { playerId: BOT_PLAYER_ID, displayName: 'RiskyBot', isBot: true, connected: true };
     }
 
+    const rules = p.rules ?? CLASSIC_RULES;
+    const wallet = startingWallet(rules);
     const session: GameSession = {
       id,
       mode: p.mode,
+      rules,
+      ...(wallet ? { wallet } : {}),
+      modeState: {},
       status: p.mode === 'bot' ? 'awaiting_submission' : 'waiting_for_opponent',
       players,
       startFen: START_FEN,
@@ -110,7 +147,7 @@ export class GameManager {
     if (p.mode === 'bot') {
       // Defer so the caller can join the room and receive the ack before events flow.
       queueMicrotask(() => {
-        this.emit(id, 'game_started', snapshot(session));
+        this.announceStart(record);
         this.beginTurn(record);
       });
     }
@@ -138,7 +175,7 @@ export class GameManager {
     if (creator && !creator.connected) this.startGrace(record, other(color));
 
     queueMicrotask(() => {
-      this.emit(s.id, 'game_started', snapshot(s));
+      this.announceStart(record);
       this.beginTurn(record);
     });
     return ok({ gameId: s.id, playerId: slot.playerId, playerToken: token, color });
@@ -175,12 +212,14 @@ export class GameManager {
     }
     s.updatedAt = Date.now();
     if (wasDisconnected && s.status !== 'finished') this.emit(s.id, 'opponent_reconnected', { gameId: s.id, color });
-    return ok({ session: snapshot(s), color });
+    return ok({ session: viewFor(s, color), color });
   }
 
-  getState(gameId: string): Ack<{ session: GameSession }> {
+  /** The full session, or one seat's redacted view of it when `color` is given. */
+  getState(gameId: string, color?: Color): Ack<{ session: GameSession }> {
     const record = this.store.get(gameId);
-    return record ? ok({ session: snapshot(record.session) }) : fail('GAME_NOT_FOUND', 'No game with that code');
+    if (!record) return fail('GAME_NOT_FOUND', 'No game with that code');
+    return ok({ session: color ? viewFor(record.session, color) : snapshot(record.session) });
   }
 
   // ---------- turns ----------
@@ -206,8 +245,13 @@ export class GameManager {
         previousFens: s.history.map((h) => h.fenBefore),
         moveA: sub.moveA,
         moveB: sub.moveB,
+        rules: s.rules,
+        ...(s.wallet ? { wallet: s.wallet } : {}),
+        modeState: s.modeState,
+        ...(sub.extras ? { extras: sub.extras } : {}),
+        history: s.history,
       },
-      this.opts.tosser,
+      this.tossDeps(),
     );
     if (!resolved.ok) return fail(resolved.error, resolved.message);
 
@@ -216,7 +260,10 @@ export class GameManager {
     delete s.turnDeadline;
     s.history.push(result);
     s.fen = result.fenAfter;
-    s.turn = other(color);
+    if (result.walletAfter) s.wallet = result.walletAfter;
+    s.modeState = applyModeEffects(s.modeState, result.effects);
+    // Derived, never flipped: an All-In bonus ply leaves the same seat to move.
+    s.turn = sideToMove(result.fenAfter);
     s.turnNumber += 1;
     s.updatedAt = result.resolvedAt;
 
@@ -224,9 +271,16 @@ export class GameManager {
     record.submissions.set(sub.clientSubmissionId, ack);
 
     this.emit(s.id, 'turn_resolved', structuredClone(result));
-    if (result.outcome) this.finish(record, result.outcome);
+    if (result.outcome) this.finish(record, result.outcome, true);
     else this.beginTurn(record);
     return ack;
+  }
+
+  /** Side Bets. Plan 05 implements placement; until then every game rejects it. */
+  placeBet(_color: Color, p: PlaceBetPayload): Ack<{ bet: PropBet }> {
+    const record = this.store.get(p.gameId);
+    if (!record) return fail('GAME_NOT_FOUND', 'No game with that code');
+    return fail('MODE_DISABLED', 'Side bets are not available in this game');
   }
 
   resign(gameId: string, color: Color): Ack<Record<string, never>> {
@@ -272,6 +326,18 @@ export class GameManager {
   }
 
   // ---------- internals ----------
+
+  private tossDeps(): ResolveDeps {
+    return this.opts.tosser ? { tosser: this.opts.tosser } : { rng: this.opts.tossRng, method: 'crypto.randomInt' };
+  }
+
+  /** game_started goes to each human seat separately, as that seat's view. */
+  private announceStart(record: GameRecord): void {
+    const s = record.session;
+    for (const c of ['w', 'b'] as const) {
+      if (s.players[c] && !s.players[c]!.isBot) this.emitTo(s.id, c, 'game_started', viewFor(s, c));
+    }
+  }
 
   private beginTurn(record: GameRecord): void {
     const s = record.session;
@@ -342,19 +408,31 @@ export class GameManager {
     const { turnNumber, turn } = s;
     this.timers.set(`${s.id}:bot`, delay, () => {
       if (s.status !== 'awaiting_submission' || s.turnNumber !== turnNumber) return;
-      const pair = pickBotPair(s.fen, this.opts.rng, 'greedy');
-      this.submit(turn, { gameId: s.id, turnNumber, clientSubmissionId: newId(), ...pair });
+      const pick = pickBotSubmission(s.fen, s, this.opts.rng, 'greedy');
+      this.submit(turn, { gameId: s.id, turnNumber, clientSubmissionId: newId(), ...pick });
     });
   }
 
-  private finish(record: GameRecord, outcome: GameOutcome): void {
+  /** `onBoard`: the last turn ended the game and already settled everything in its effects. */
+  private finish(record: GameRecord, outcome: GameOutcome, onBoard = false): void {
     const s = record.session;
+    const effects = onBoard ? [] : gameOverEffects(s, outcome);
+    if (effects.length) {
+      if (s.wallet) s.wallet = applyEffects(s.wallet, effects);
+      s.modeState = applyModeEffects(s.modeState, effects);
+    }
     s.status = 'finished';
     s.outcome = outcome;
     delete s.graceEndsAt;
     delete s.turnDeadline;
     s.updatedAt = Date.now();
     this.timers.clearPrefix(`${s.id}:`);
-    this.emit(s.id, 'game_over', { gameId: s.id, outcome, finalFen: s.fen });
+    this.emit(s.id, 'game_over', {
+      gameId: s.id,
+      outcome,
+      finalFen: s.fen,
+      ...(effects.length ? { effects } : {}),
+      ...(s.wallet ? { walletAfter: s.wallet } : {}),
+    });
   }
 }

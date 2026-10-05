@@ -50,6 +50,10 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
   const endAngle = 360 * COIN_TURNS + winner * 180;
 
   const spin = useSharedValue(0);
+  /** 0–1 position of the odds marker; slides to the roll while the coin spins. */
+  const marker = useSharedValue(0);
+  const weighted = tossed && result.odds.A !== 5000;
+  const rollAt = result.coin?.roll ?? (winner === 0 ? result.odds.A / 2 : (result.odds.A + 10_000) / 2);
   /** Gate for ticks: 1 once the coin has landed (or never spins). */
   const landed = useSharedValue(0);
   const slide = useSharedValue(0);
@@ -88,6 +92,7 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
     if (reduceMotion) {
       landed.value = 1;
       spin.value = winner * 180;
+      marker.value = rollAt / 10_000;
       if (tossed) onLand();
       else playSfx('forced');
       const t = setTimeout(onEnd, REDUCED_HOLD_MS);
@@ -100,6 +105,7 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
       haptics.rigid();
       startSlide(FORCED_HOLD_MS);
     } else {
+      marker.value = withTiming(rollAt / 10_000, { duration: coinSpinMs(mine), easing: Easing.out(Easing.quad) });
       spin.value = withTiming(endAngle, { duration: coinSpinMs(mine), easing: Easing.out(Easing.quad) }, (finished) => {
         'worklet';
         if (!finished) return;
@@ -111,8 +117,9 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
     return () => {
       cancelAnimation(spin);
       cancelAnimation(slide);
+      cancelAnimation(marker);
     };
-  }, [result, mine, reduceMotion, onDone, tossed, winner, endAngle, spin, landed, slide]);
+  }, [result, mine, reduceMotion, onDone, tossed, winner, endAngle, spin, landed, slide, marker, rollAt]);
 
   // The coin clears out of the way as the piece starts moving.
   const coinWrap = useAnimatedStyle(() => ({ opacity: interpolate(slide.value, [0, 0.4], [1, 0], 'clamp') }));
@@ -141,6 +148,9 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
   const offsets = pairOffset(result.moveA, result.moveB);
   const coin = coinSize;
   const board = cell * 8;
+  const barW = board * 0.8;
+  const markerStyle = useAnimatedStyle(() => ({ transform: [{ translateX: marker.value * barW - 2 }] }));
+  const pctA = Math.round(result.odds.A / 100);
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -175,6 +185,20 @@ export function TossReveal({ result, orientation, cell, mine, onDone }: Props) {
           </Animated.View>
         </Animated.View>
       )}
+      {weighted && (
+        // A static split (A's share = its odds) with a marker sliding to where the roll fell.
+        <Animated.View style={[styles.oddsWrap, { left: board * 0.1, top: board / 2 + coin / 2 + cell * 0.2, width: barW }, coinWrap]}>
+          <View style={styles.oddsBar}>
+            <View style={{ width: `${pctA}%`, backgroundColor: slotColor('A') }} />
+            <View style={{ flex: 1, backgroundColor: slotColor('B') }} />
+            <Animated.View style={[styles.oddsMarker, markerStyle]} />
+          </View>
+          <View style={styles.oddsLabels}>
+            <Text style={styles.oddsText}>A {pctA}%</Text>
+            <Text style={styles.oddsText}>B {100 - pctA}%</Text>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -190,4 +214,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.75)',
   },
   letter: { fontWeight: '900', color: '#111' },
+  oddsWrap: { position: 'absolute', gap: 2 },
+  oddsBar: { height: 12, borderRadius: 6, overflow: 'hidden', flexDirection: 'row', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.55)' },
+  oddsMarker: { position: 'absolute', left: 0, top: -2, bottom: -2, width: 4, backgroundColor: '#fff', borderRadius: 2 },
+  oddsLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  oddsText: { color: '#111', fontWeight: '900', fontSize: 12, backgroundColor: 'rgba(255,255,255,0.75)', paddingHorizontal: 4, borderRadius: 4, overflow: 'hidden' },
 });

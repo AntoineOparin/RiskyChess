@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Color, GameOutcome, GameSession, TurnResult, TurnStartedPayload } from '@risky-chess/shared';
+import { applyModeEffects, sideToMove } from '@risky-chess/engine';
+import type { Color, GameOutcome, GameSession, TurnEffect, TurnResult, TurnStartedPayload, Wallet } from '@risky-chess/shared';
 
 interface OnlineGameState {
   session: GameSession | null;
@@ -14,7 +15,7 @@ interface OnlineGameState {
   setSession(session: GameSession, color?: Color): void;
   applyTurnResult(r: TurnResult): 'applied' | 'duplicate' | 'gap';
   applyTurnStarted(p: TurnStartedPayload): void;
-  applyGameOver(outcome: GameOutcome): void;
+  applyGameOver(outcome: GameOutcome, settle?: { effects?: TurnEffect[]; walletAfter?: Wallet }): void;
   setOpponentPresence(color: Color, graceEndsAt: number | null): void;
   set(partial: Partial<Pick<OnlineGameState, 'connected' | 'submitting' | 'error'>>): void;
 }
@@ -45,8 +46,11 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
       session: {
         ...s,
         fen: r.fenAfter,
-        turn: s.turn === 'w' ? 'b' : 'w',
+        // Derived from the position, never flipped: an All-In bonus ply keeps the same side to move.
+        turn: sideToMove(r.fenAfter),
         turnNumber: s.turnNumber + 1,
+        ...(r.walletAfter ? { wallet: r.walletAfter } : {}),
+        modeState: applyModeEffects(s.modeState, r.effects ?? []),
         history: [...s.history, r],
         status: r.status,
         ...(r.outcome ? { outcome: r.outcome } : {}),
@@ -61,9 +65,20 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
     if (s && p.turnNumber === s.turnNumber) set({ session: { ...s, status: p.status } });
   },
 
-  applyGameOver: (outcome) => {
+  applyGameOver: (outcome, settle) => {
     const s = get().session;
-    if (s) set({ session: { ...s, status: 'finished', outcome }, opponentGraceEndsAt: null, submitting: false });
+    if (!s) return;
+    set({
+      session: {
+        ...s,
+        status: 'finished',
+        outcome,
+        ...(settle?.walletAfter ? { wallet: settle.walletAfter } : {}),
+        modeState: applyModeEffects(s.modeState, settle?.effects ?? []),
+      },
+      opponentGraceEndsAt: null,
+      submitting: false,
+    });
   },
 
   setOpponentPresence: (color, graceEndsAt) => {

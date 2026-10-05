@@ -11,18 +11,56 @@ export const moveInputSchema = z.object({
   promotion: z.enum(['q', 'r', 'b', 'n']).optional(),
 });
 
+export const modeIdSchema = z.enum(['loaded_dice', 'odds_market', 'all_in', 'side_bets']);
+
+export const gameRulesSchema = z.object({
+  modes: z
+    .array(modeIdSchema)
+    .max(4)
+    .refine((m) => new Set(m).size === m.length, 'Duplicate mode'),
+});
+
+export const turnExtrasSchema = z.object({
+  favor: z.enum(['A', 'B']).optional(),
+  stake: z.number().int().min(0).max(1000).optional(),
+  allIn: z.boolean().optional(),
+  clientSeed: z
+    .string()
+    .regex(/^[0-9a-f]{8,128}$/)
+    .optional(),
+});
+
 export const moveSubmissionSchema = z.object({
   gameId: gameIdSchema,
   turnNumber: z.number().int().positive(),
   clientSubmissionId: z.string().min(1).max(64),
   moveA: moveInputSchema,
   moveB: moveInputSchema.nullable(),
+  extras: turnExtrasSchema.optional(),
 });
 
 export const createGameSchema = z.object({
   mode: z.enum(['pvp', 'bot']),
   displayName: displayNameSchema,
   color: z.enum(['w', 'b', 'random']).optional(),
+  rules: gameRulesSchema.optional(),
+});
+
+export const propBetKindSchema = z.enum([
+  'opp_castles_by',
+  'opp_promotes',
+  'opp_toss_upset',
+  'opp_all_in_bust',
+  'game_length_under',
+  'game_length_over',
+]);
+
+export const placeBetSchema = z.object({
+  gameId: gameIdSchema,
+  clientBetId: z.string().min(1).max(64),
+  kind: propBetKindSchema,
+  params: z.record(z.string(), z.number().int()).optional(),
+  stake: z.number().int().positive().max(1000),
 });
 
 export const joinGameSchema = z.object({ gameId: gameIdSchema, displayName: displayNameSchema });

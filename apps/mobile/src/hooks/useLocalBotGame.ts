@@ -1,24 +1,41 @@
 import { useCallback, useEffect, useState } from 'react';
-import { mathRng, pickBotPair, resolveTurn, rngTosser } from '@risky-chess/engine';
-import { BOT_THINK_MS, START_FEN, type Color, type GameOutcome, type MoveInput, type TurnResult } from '@risky-chess/shared';
+import { applyEffects, applyModeEffects, gameOverEffects, mathRng, pickBotSubmission, resolveTurn, startingWallet } from '@risky-chess/engine';
+import {
+  BOT_THINK_MS,
+  CLASSIC_RULES,
+  START_FEN,
+  type Color,
+  type GameOutcome,
+  type GameRules,
+  type ModeState,
+  type MoveInput,
+  type TurnExtras,
+  type TurnResult,
+  type Wallet,
+} from '@risky-chess/shared';
 import { other, turnOf } from '../lib/chess';
 import { revealDurationMs } from '../lib/motion';
 
-const tosser = rngTosser(mathRng, 'local');
-
-interface LocalState {
+export interface LocalState {
   fen: string;
   history: TurnResult[];
   outcome?: GameOutcome;
+  wallet?: Wallet;
+  modeState: ModeState;
 }
 
-/** Offline game against the engine bot; the same rules package the server uses. */
-export function useLocalBotGame(humanColor: Color) {
-  const [state, setState] = useState<LocalState>({ fen: START_FEN, history: [] });
+const fresh = (rules: GameRules): LocalState => {
+  const wallet = startingWallet(rules);
+  return { fen: START_FEN, history: [], modeState: {}, ...(wallet ? { wallet } : {}) };
+};
+
+/** Offline game against the engine bot; the same rules pipeline the server runs, with a local coin. */
+export function useLocalBotGame(humanColor: Color, rules: GameRules = CLASSIC_RULES) {
+  const [state, setState] = useState<LocalState>(() => fresh(rules));
   const [error, setError] = useState<string | null>(null);
 
   const play = useCallback(
-    (moveA: MoveInput, moveB: MoveInput | null) => {
+    (moveA: MoveInput, moveB: MoveInput | null, extras?: TurnExtras) => {
       if (state.outcome) return;
       const r = resolveTurn(
         {
@@ -28,21 +45,29 @@ export function useLocalBotGame(humanColor: Color) {
           previousFens: state.history.map((h) => h.fenBefore),
           moveA,
           moveB,
+          rules,
+          ...(state.wallet ? { wallet: state.wallet } : {}),
+          modeState: state.modeState,
+          ...(extras ? { extras } : {}),
+          history: state.history,
         },
-        tosser,
+        { rng: mathRng, method: 'local' },
       );
       if (!r.ok) {
         setError(r.message);
         return;
       }
       setError(null);
+      const { result } = r;
       setState({
-        fen: r.result.fenAfter,
-        history: [...state.history, r.result],
-        ...(r.result.outcome ? { outcome: r.result.outcome } : {}),
+        fen: result.fenAfter,
+        history: [...state.history, result],
+        modeState: applyModeEffects(state.modeState, result.effects),
+        ...(result.walletAfter ? { wallet: result.walletAfter } : {}),
+        ...(result.outcome ? { outcome: result.outcome } : {}),
       });
     },
-    [state],
+    [state, rules],
   );
 
   const botColor = other(humanColor);
@@ -53,21 +78,40 @@ export function useLocalBotGame(humanColor: Color) {
     const last = state.history.at(-1);
     const delay = BOT_THINK_MS.min + (last ? revealDurationMs(last, true) : 0);
     const t = setTimeout(() => {
-      const pair = pickBotPair(state.fen, mathRng, 'greedy');
-      play(pair.moveA, pair.moveB);
+      const pick = pickBotSubmission(state.fen, { ...state, rules, turnNumber: state.history.length + 1 }, mathRng, 'greedy');
+      play(pick.moveA, pick.moveB, pick.extras);
     }, delay);
     return () => clearTimeout(t);
+    // Re-arm only when the position or history changes, not on every state object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botToMove, state.fen, state.history.length, play]);
 
-  const resign = useCallback(() => setState((s) => ({ ...s, outcome: { kind: 'resign', winner: botColor } })), [botColor]);
-  const restart = useCallback(() => setState({ fen: START_FEN, history: [] }), []);
+  /** Ends the game off the board, settling anything modes still hold open. */
+  const end = useCallback(
+    (outcome: GameOutcome) =>
+      setState((s) => {
+        if (s.outcome) return s;
+        const effects = gameOverEffects({ ...s, rules, turnNumber: s.history.length + 1 }, outcome);
+        return {
+          ...s,
+          outcome,
+          modeState: applyModeEffects(s.modeState, effects),
+          ...(s.wallet ? { wallet: applyEffects(s.wallet, effects) } : {}),
+        };
+      }),
+    [rules],
+  );
+  const resign = useCallback(() => end({ kind: 'resign', winner: botColor }), [end, botColor]);
+  const restart = useCallback(() => setState(fresh(rules)), [rules]);
 
   return {
     ...state,
+    rules,
     myTurn: turnOf(state.fen) === humanColor && !state.outcome,
     error,
     play,
     resign,
     restart,
+    setState,
   };
 }

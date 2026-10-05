@@ -29,3 +29,8 @@ export function revealDurationMs(result: TurnResult, mine: boolean, reduceMotion
   if (result.forced) return FORCED_HOLD_MS + SLIDE_MS;
   return coinSpinMs(mine) + LAND_HOLD_MS + SLIDE_MS;
 }
+
+/** A chip counter's brief pulse when its value changes. */
+export const CHIP_PULSE_MS = 180;
+/** How long an effect toast stays up after a reveal settles. */
+export const EFFECT_TOAST_MS = 2500;

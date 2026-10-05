@@ -2,5 +2,8 @@ export * from './rng';
 export * from './legal';
 export * from './validate';
 export * from './status';
+export * from './odds';
+export * from './economy';
 export * from './resolve';
 export * from './bot';
+export * from './modes';

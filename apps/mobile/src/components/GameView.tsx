@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { Color, GameOutcome, MoveInput, TurnResult } from '@risky-chess/shared';
+import { chipDelta, previewOdds } from '@risky-chess/engine';
+import { CLASSIC_RULES, type Color, type GameRules, type ModeState, type MoveInput, type TurnExtras, type TurnResult, type Wallet, type GameOutcome } from '@risky-chess/shared';
 import { useMoveSelection } from '../hooks/useMoveSelection';
+import { describeEffects } from '../lib/effects';
+import { activeUi } from '../modes/registry';
+import type { BetOutcome, BetRequest, TableCtx } from '../modes/types';
+import { cleanExtras, useModeExtras } from '../state/modeExtras';
 import { useTurnPresenter } from '../hooks/useTurnPresenter';
 import { describeOutcome, materialSummary, other } from '../lib/chess';
 import { haptics } from '../lib/haptics';
@@ -10,9 +15,24 @@ import { colors } from '../lib/theme';
 import { Board, type Marker } from './Board/Board';
 import { BoardOverlay } from './Board/BoardOverlay';
 import { TossReveal } from './Board/TossReveal';
+import { EffectsFeed } from './EffectsFeed';
+import { ModePanelZone } from './ModePanelZone';
 import { MoveSlotBar } from './MoveSlotBar';
+import { OddsBadge } from './OddsBadge';
 import { PlayerBar } from './PlayerBar';
 import { PromotionPicker } from './PromotionPicker';
+import { RulesSheet } from './RulesSheet';
+
+/** The table's mode setup, from the viewer's side. Omitted for a classic game. */
+export interface TableInfo {
+  gameId: string;
+  rules: GameRules;
+  wallet?: Wallet | undefined;
+  modeState: ModeState;
+  turnNumber: number;
+  online: boolean;
+  placeBet?: (req: BetRequest) => Promise<BetOutcome>;
+}
 
 export interface GameViewProps {
   /** Authoritative current position. */
@@ -26,8 +46,9 @@ export interface GameViewProps {
   banner?: string | null;
   submitting?: boolean;
   error?: string | null;
-  onSubmit: (moveA: MoveInput, moveB: MoveInput | null) => void;
+  onSubmit: (moveA: MoveInput, moveB: MoveInput | null, extras?: TurnExtras) => void;
   onResign: () => void;
+  table?: TableInfo;
   /** Shown once the game is over and the final reveal has finished. */
   outcomeAction?: { label: string; onPress: () => void };
 }
@@ -40,7 +61,7 @@ const marker = (m: { from: Marker['from']; to: Marker['to'] } | null | undefined
  * revealed one at a time on the board; it shows each turn's starting position
  * until its reveal ends. Tapping the board during a reveal skips it.
  */
-export function GameView({ fen, myColor, history, myTurn, outcome, names, banner, submitting = false, error, onSubmit, onResign, outcomeAction }: GameViewProps) {
+export function GameView({ fen, myColor, history, myTurn, outcome, names, banner, submitting = false, error, onSubmit, onResign, outcomeAction, table }: GameViewProps) {
   const { width } = useWindowDimensions();
   const size = Math.min(width - 32, 480);
   const cell = size / 8;
@@ -52,6 +73,75 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
   // From the displayed position, so the count updates when a reveal lands, never before.
   const material = useMemo(() => materialSummary(displayFen), [displayFen]);
   const oppColor = other(myColor);
+  const rules = table?.rules ?? CLASSIC_RULES;
+  const [rulesOpen, setRulesOpen] = useState(false);
+
+  // Mode inputs for the next submission; every new position starts clean.
+  const extras = useModeExtras((s) => s.extras);
+  const setExtras = useModeExtras((s) => s.set);
+  useEffect(() => useModeExtras.getState().reset(), [displayFen]);
+
+  // Chips as of what has been revealed: turns still queued for a reveal are not counted yet.
+  const shownWallet = useMemo(() => {
+    const w = table?.wallet;
+    if (!w || !revealing) return w;
+    const d = chipDelta(history.slice(history.indexOf(revealing)).flatMap((r) => r.effects ?? []));
+    return { w: w.w - d.w, b: w.b - d.b };
+  }, [table?.wallet, revealing, history]);
+
+  // The line the current pair would be tossed at: the same engine pipeline the server runs.
+  const odds = useMemo(() => {
+    if (!table || !canAct || !sel.slots.A || (!sel.slots.B && !extras.allIn)) return null;
+    const p = previewOdds({
+      gameId: table.gameId,
+      turnNumber: table.turnNumber,
+      fen: displayFen,
+      previousFens: [],
+      moveA: sel.slots.A,
+      moveB: extras.allIn ? null : sel.slots.B,
+      rules: table.rules,
+      ...(table.wallet ? { wallet: table.wallet } : {}),
+      modeState: table.modeState,
+      extras,
+      history,
+    });
+    return p.ok ? p.odds : null;
+  }, [table, canAct, sel.slots, extras, displayFen, history]);
+
+  const ctx: TableCtx = useMemo(
+    () => ({
+      fen: displayFen,
+      myColor,
+      rules,
+      ...(shownWallet ? { wallet: shownWallet } : {}),
+      modeState: table?.modeState ?? {},
+      history,
+      turnNumber: table?.turnNumber ?? history.length + 1,
+      canAct: canAct && !submitting,
+      slots: sel.slots,
+      extras,
+      setExtras,
+      odds,
+      online: table?.online ?? false,
+      finished: !!settledOutcome,
+      ...(table?.placeBet ? { placeBet: table.placeBet } : {}),
+    }),
+    [displayFen, myColor, rules, shownWallet, table, history, canAct, submitting, sel.slots, extras, setExtras, odds, settledOutcome],
+  );
+  const modes = activeUi(rules.modes);
+  const badgeModes = modes.filter(([, ui]) => ui.SlotBadge);
+  const accessory = (color: Color) =>
+    modes
+      .filter(([, ui]) => ui.PlayerAccessory)
+      .map(([id, ui]) => {
+        const Accessory = ui.PlayerAccessory!;
+        return <Accessory key={id} ctx={ctx} color={color} />;
+      });
+
+  // Effect toasts once a reveal settles, only for turns revealed while this screen is open.
+  const firstLive = useRef(history.at(-1)?.turnNumber ?? 0);
+  const feedTurn = !revealing && lastShown && lastShown.turnNumber > firstLive.current ? lastShown : null;
+  const feedLines = useMemo(() => (feedTurn ? describeEffects(feedTurn.effects ?? [], rules, myColor) : []), [feedTurn, rules, myColor]);
 
   const skip = useCallback(() => {
     if (!revealing) return;
@@ -106,7 +196,14 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <PlayerBar name={names.opponent} captured={material[oppColor].captured} capturedColor={myColor} score={material[oppColor].score} />
+      <PlayerBar
+        name={names.opponent}
+        captured={material[oppColor].captured}
+        capturedColor={myColor}
+        score={material[oppColor].score}
+        chips={shownWallet?.[oppColor]}
+        accessory={accessory(oppColor)}
+      />
       <View style={{ width: size, height: size }}>
         <Board
           fen={displayFen}
@@ -136,12 +233,24 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
           />
         )}
       </View>
-      <PlayerBar name={names.me} captured={material[myColor].captured} capturedColor={oppColor} score={material[myColor].score} />
+      <PlayerBar
+        name={names.me}
+        captured={material[myColor].captured}
+        capturedColor={oppColor}
+        score={material[myColor].score}
+        chips={shownWallet?.[myColor]}
+        accessory={accessory(myColor)}
+      />
 
       <View style={styles.statusRow}>
         <Text style={[styles.status, settledOutcome && styles.outcome]}>{status}</Text>
+        <Pressable onPress={() => setRulesOpen(true)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Table rules" style={styles.help}>
+          <Text style={styles.helpText}>?</Text>
+        </Pressable>
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      <EffectsFeed feedKey={feedTurn ? `${feedTurn.gameId}:${feedTurn.turnNumber}` : null} lines={feedLines} />
+      {!settledOutcome && <ModePanelZone ctx={ctx} />}
 
       {!settledOutcome && (
         <MoveSlotBar
@@ -155,14 +264,32 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
           locked={submitting}
           onArm={sel.arm}
           onClear={sel.clear}
-          onSubmit={() => sel.submission && onSubmit(sel.submission.moveA, sel.submission.moveB)}
+          onSubmit={() => sel.submission && onSubmit(sel.submission.moveA, sel.submission.moveB, cleanExtras(extras))}
+          badge={(slot) =>
+            badgeModes.length ? (
+              badgeModes.map(([id, ui]) => {
+                const B = ui.SlotBadge!;
+                return <B key={id} ctx={ctx} slot={slot} />;
+              })
+            ) : (
+              <OddsBadge odds={odds} slot={slot} />
+            )
+          }
         />
       )}
       {lastShown && !lastShown.forced && (
         <Text style={styles.lastTurn}>
-          Last toss: {lastShown.moveA.san} vs {lastShown.moveB?.san} → {lastShown.coin?.chosen} ({lastShown.executed.san})
+          Last toss: {lastShown.moveA.san} vs {lastShown.moveB?.san ?? 'All-In'} → {lastShown.coin?.chosen} ({lastShown.executed.san})
+          {lastShown.odds && lastShown.odds.A !== 5000 ? ` at ${Math.round(lastShown.odds.A / 100)}/${100 - Math.round(lastShown.odds.A / 100)}` : ''}
         </Text>
       )}
+      {settledOutcome &&
+        modes
+          .filter(([, ui]) => ui.GameOverCard)
+          .map(([id, ui]) => {
+            const Card = ui.GameOverCard!;
+            return <Card key={id} ctx={ctx} />;
+          })}
       {settledOutcome && outcomeAction && (
         <Pressable onPress={outcomeAction.onPress} style={styles.action}>
           <Text style={styles.actionText}>{outcomeAction.label}</Text>
@@ -174,6 +301,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
         </Pressable>
       )}
       <PromotionPicker visible={sel.pendingPromotion !== null} color={myColor} onPick={sel.choosePromotion} />
+      <RulesSheet visible={rulesOpen} rules={rules} onClose={() => setRulesOpen(false)} />
     </ScrollView>
   );
 }
@@ -187,6 +315,8 @@ const styles = StyleSheet.create({
   resign: { alignSelf: 'center', padding: 8 },
   resignText: { color: colors.danger, fontWeight: '600' },
   lastTurn: { color: colors.textMuted, textAlign: 'center', fontSize: 12 },
+  help: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: colors.textMuted, alignItems: 'center', justifyContent: 'center' },
+  helpText: { color: colors.textMuted, fontWeight: '800', fontSize: 13 },
   action: { backgroundColor: colors.slotA, borderRadius: 12, minHeight: 56, alignItems: 'center', justifyContent: 'center' },
   actionText: { color: '#111', fontWeight: '800', fontSize: 17 },
 });

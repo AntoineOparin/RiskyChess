@@ -34,3 +34,12 @@ export function findLegal(fen: string, input: MoveInput): ResolvedMove | null {
   const match = legalMoves(fen).find((m) => m.lan === lan);
   return match ? toResolved(match) : null;
 }
+
+/** A chess.js move as a submission input (promotion piece only when promoting). */
+export function toInput(m: Move): MoveInput {
+  const input: MoveInput = { from: m.from, to: m.to };
+  if (m.promotion === 'q' || m.promotion === 'r' || m.promotion === 'b' || m.promotion === 'n') {
+    input.promotion = m.promotion;
+  }
+  return input;
+}

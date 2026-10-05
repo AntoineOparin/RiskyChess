@@ -8,7 +8,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "sim:dice": "tsx scripts/loaded-dice-sim.ts"
+    "sim:dice": "tsx scripts/loaded-dice-sim.ts",
+    "sim:market": "tsx scripts/market-sim.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

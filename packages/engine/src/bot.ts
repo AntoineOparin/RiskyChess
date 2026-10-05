@@ -3,22 +3,15 @@ import type { MoveInput, TurnExtras } from '@risky-chess/shared';
 import { activeModules, type RankedMove, type SessionLike } from './modes';
 import type { Rng } from './rng';
 import { scoreMove } from './score';
+import { toInput } from './legal';
 
-export { scoreMove };
+export { scoreMove, toInput };
 
 export type BotDifficulty = 'random' | 'greedy';
 
 export interface BotPair {
   moveA: MoveInput;
   moveB: MoveInput | null;
-}
-
-export function toInput(m: Move): MoveInput {
-  const input: MoveInput = { from: m.from, to: m.to };
-  if (m.promotion === 'q' || m.promotion === 'r' || m.promotion === 'b' || m.promotion === 'n') {
-    input.promotion = m.promotion;
-  }
-  return input;
 }
 
 function shuffle<T>(items: T[], rng: Rng): T[] {

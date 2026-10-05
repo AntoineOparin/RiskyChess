@@ -7,6 +7,7 @@ import type { ModeModule } from './types';
 
 export * from './types';
 export { LOADED_DICE_TIERS, BOT_STAKE, shiftFor } from './loaded-dice';
+export { MARKET, edgeForGap, marketLine, preferBalancedPair, type MarketLine } from './odds-market';
 
 export const MODE_REGISTRY: Record<ModeId, ModeModule> = {
   loaded_dice: loadedDice,

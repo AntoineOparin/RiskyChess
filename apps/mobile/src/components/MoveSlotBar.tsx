@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { MoveSlot, ResolvedMove } from '@gamble/shared';
+import type { MoveSlot, ResolvedMove } from '@risky-chess/shared';
 import { colors, slotColor } from '../lib/theme';
 
 interface Props {

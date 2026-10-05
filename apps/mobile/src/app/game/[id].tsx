@@ -35,7 +35,7 @@ export default function OnlineGame() {
       <View style={styles.center}>
         <Text style={styles.muted}>Share this code with your opponent</Text>
         <Text style={styles.code}>{session.id}</Text>
-        <Pressable style={styles.share} onPress={() => void Share.share({ message: `Join my Gamble Chess game: ${session.id}` })}>
+        <Pressable style={styles.share} onPress={() => void Share.share({ message: `Join my Risky Chess game: ${session.id}` })}>
           <Text style={styles.shareText}>Share code</Text>
         </Pressable>
         <ActivityIndicator color={colors.slotA} />

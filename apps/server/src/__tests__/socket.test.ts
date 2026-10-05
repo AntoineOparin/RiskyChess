@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import type { Ack, ClientToServerEvents, GameOutcome, MoveInput, ServerToClientEvents, TurnResult } from '@gamble/shared';
+import type { Ack, ClientToServerEvents, GameOutcome, MoveInput, ServerToClientEvents, TurnResult } from '@risky-chess/shared';
 import { createApp, type App } from '../app';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;

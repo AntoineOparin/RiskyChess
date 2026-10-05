@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Chess } from 'chess.js';
-import type { Color, MoveSlot, PieceSymbol, Square } from '@gamble/shared';
+import type { Color, MoveSlot, PieceSymbol, Square } from '@risky-chess/shared';
 import { boardSquares, isLightSquare } from '../../lib/chess';
 import { colors, slotColor } from '../../lib/theme';
 import { Piece } from './Piece';

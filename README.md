@@ -1,4 +1,4 @@
-# RiskyChess (Gamble Chess)
+# Risky Chess
 
 Chess where the side to move submits **two** legal moves and the server flips a fair coin to decide which one is played.
 

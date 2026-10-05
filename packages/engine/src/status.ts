@@ -1,5 +1,5 @@
 import type { Chess } from 'chess.js';
-import type { GameOutcome } from '@gamble/shared';
+import type { GameOutcome } from '@risky-chess/shared';
 
 /** Board, side to move, castling rights and en passant: the FIDE identity of a position. */
 export function positionKey(fen: string): string {

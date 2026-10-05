@@ -1,4 +1,4 @@
-import { mathRng, pickBotPair, resolveTurn, type Rng, type Tosser } from '@gamble/engine';
+import { mathRng, pickBotPair, resolveTurn, type Rng, type Tosser } from '@risky-chess/engine';
 import {
   BOT_THINK_MS,
   DISCONNECT_GRACE_MS,
@@ -17,7 +17,7 @@ import {
   type RejoinGamePayload,
   type SeatGrant,
   type ServerToClientEvents,
-} from '@gamble/shared';
+} from '@risky-chess/shared';
 import { cryptoRng, cryptoTosser, newGameCode, newId, newToken } from '../crypto/coin';
 import type { GameRecord, GameStore } from './GameStore';
 import { Timers } from './timers';
@@ -81,7 +81,7 @@ export class GameManager {
     const players: GameSession['players'] = { w: null, b: null };
     players[color] = human;
     if (p.mode === 'bot') {
-      players[other(color)] = { playerId: BOT_PLAYER_ID, displayName: 'GambleBot', isBot: true, connected: true };
+      players[other(color)] = { playerId: BOT_PLAYER_ID, displayName: 'RiskyBot', isBot: true, connected: true };
     }
 
     const session: GameSession = {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import type { MoveInput } from '@gamble/shared';
+import type { MoveInput } from '@risky-chess/shared';
 import { newSubmissionId } from '../lib/chess';
 import { loadSeat } from '../net/seats';
 import { getSocket, request } from '../net/socket';

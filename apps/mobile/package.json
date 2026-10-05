@@ -1,10 +1,10 @@
 {
-  "name": "@gamble/mobile",
+  "name": "@risky-chess/mobile",
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@gamble/engine": "workspace:*",
-    "@gamble/shared": "workspace:*",
+    "@risky-chess/engine": "workspace:*",
+    "@risky-chess/shared": "workspace:*",
     "chess.js": "^1.4.0",
     "expo": "~57.0.26",
     "expo-constants": "~57.0.20",

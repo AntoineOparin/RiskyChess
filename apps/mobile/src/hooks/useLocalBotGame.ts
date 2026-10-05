@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { mathRng, pickBotPair, resolveTurn, rngTosser } from '@gamble/engine';
-import { BOT_THINK_MS, START_FEN, type Color, type GameOutcome, type MoveInput, type TurnResult } from '@gamble/shared';
+import { mathRng, pickBotPair, resolveTurn, rngTosser } from '@risky-chess/engine';
+import { BOT_THINK_MS, START_FEN, type Color, type GameOutcome, type MoveInput, type TurnResult } from '@risky-chess/shared';
 import { other, turnOf } from '../lib/chess';
 
 const tosser = rngTosser(mathRng, 'local');

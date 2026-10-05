@@ -20,10 +20,10 @@ importers:
 
   apps/mobile:
     dependencies:
-      '@gamble/engine':
+      '@risky-chess/engine':
         specifier: workspace:*
         version: link:../../packages/engine
-      '@gamble/shared':
+      '@risky-chess/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       chess.js:
@@ -78,10 +78,10 @@ importers:
 
   apps/server:
     dependencies:
-      '@gamble/engine':
+      '@risky-chess/engine':
         specifier: workspace:*
         version: link:../../packages/engine
-      '@gamble/shared':
+      '@risky-chess/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       cors:
@@ -109,7 +109,7 @@ importers:
 
   packages/engine:
     dependencies:
-      '@gamble/shared':
+      '@risky-chess/shared':
         specifier: workspace:*
         version: link:../shared
       chess.js:

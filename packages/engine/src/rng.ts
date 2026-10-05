@@ -1,4 +1,4 @@
-import type { CoinToss, MoveSlot, ResolvedMove } from '@gamble/shared';
+import type { CoinToss, MoveSlot, ResolvedMove } from '@risky-chess/shared';
 
 /** Source of uniform integers in [0, maxExclusive). Injected so tests can be deterministic. */
 export interface Rng {

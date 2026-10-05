@@ -1,4 +1,4 @@
-import type { Ack, Color, GameSession } from '@gamble/shared';
+import type { Ack, Color, GameSession } from '@risky-chess/shared';
 
 /** Server-side record; only `session` is ever sent to clients. */
 export interface GameRecord {

@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import type { MoveInput, TurnResult } from '@gamble/shared';
+import type { MoveInput, TurnResult } from '@risky-chess/shared';
 import type { Tosser } from './rng';
 import { deriveOutcome } from './status';
 import { validateSubmission, type ValidationResult } from './validate';

@@ -1,5 +1,5 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { Color, PromotionPiece } from '@gamble/shared';
+import type { Color, PromotionPiece } from '@risky-chess/shared';
 import { colors } from '../lib/theme';
 import { Piece } from './Board/Piece';
 

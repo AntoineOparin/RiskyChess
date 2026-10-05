@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MoveInput, MoveSubmission, ServerToClientEvents } from '@gamble/shared';
-import { seededRng } from '@gamble/engine';
+import type { MoveInput, MoveSubmission, ServerToClientEvents } from '@risky-chess/shared';
+import { seededRng } from '@risky-chess/engine';
 import { GameManager, type Emit } from '../game/GameManager';
 import { InMemoryGameStore } from '../game/GameStore';
 

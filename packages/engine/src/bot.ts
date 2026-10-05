@@ -1,5 +1,5 @@
 import { Chess, type Move } from 'chess.js';
-import { PIECE_VALUES, type MoveInput } from '@gamble/shared';
+import { PIECE_VALUES, type MoveInput } from '@risky-chess/shared';
 import type { Rng } from './rng';
 
 export type BotDifficulty = 'random' | 'greedy';

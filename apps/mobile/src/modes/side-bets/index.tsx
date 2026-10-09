@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BET_CATALOG, BET_KINDS, BET_RULES, betPrice, type BetControl } from '@risky-chess/engine';
 import { isSealed, type Color, type PropBet, type PropBetKind, type PropBetStatus } from '@risky-chess/shared';
 import { haptics } from '../../lib/haptics';
 import { CHIP, colors } from '../../lib/theme';
+import { Sheet } from '../../components/ui';
 import type { ModeUi, TableCtx } from '../types';
 
 export const BET_TITLES: Record<PropBetKind, string> = {
@@ -79,18 +80,49 @@ function BetSlip({ visible, ctx, onClose }: { visible: boolean; ctx: TableCtx; o
     onClose();
   };
 
-  return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet} accessibilityViewIsModal>
-          <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>Sealed side bets</Text>
-            <Text style={styles.muted}>
-              {CHIP} {chips} · {mine.length}/{BET_RULES.MAX_BETS}
+  const footer = (
+    <>
+      <View style={styles.stakeRow} accessibilityRole="radiogroup" accessibilityLabel="Stake">
+        {STAKES.map((v) => (
+          <Pressable
+            key={v}
+            onPress={() => setStake(v)}
+            disabled={v > chips}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: stake === v, disabled: v > chips }}
+            style={[styles.stake, stake === v && styles.stakeOn, v > chips && styles.disabled]}
+          >
+            <Text style={styles.stakeText}>
+              {v} {CHIP}
             </Text>
-          </View>
-          <Text style={styles.muted}>Your opponent sees how many bets you hold, never which.</Text>
-          <ScrollView style={styles.list} contentContainerStyle={styles.listBody}>
+          </Pressable>
+        ))}
+      </View>
+      {error && <Text style={styles.error}>{error}</Text>}
+      <View style={styles.actions}>
+        <Pressable onPress={onClose} style={styles.cancel} accessibilityRole="button">
+          <Text style={styles.cancelText}>Close</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => void place()}
+          disabled={!pick || busy || stake > chips || full}
+          style={[styles.place, (!pick || busy || stake > chips || full) && styles.disabled]}
+          accessibilityRole="button"
+        >
+          <Text style={styles.placeText}>
+            {pick ? `Place ${stake} ${CHIP} → ${Math.floor((stake * betPrice(ctx.rules, pick)!.payoutX100) / 100)} ${CHIP}` : 'Pick a bet'}
+          </Text>
+        </Pressable>
+      </View>
+    </>
+  );
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Sealed side bets" footer={footer}>
+          <Text style={styles.muted}>
+            {CHIP} {chips} · {mine.length}/{BET_RULES.MAX_BETS} · Your opponent sees how many bets you hold, never which.
+          </Text>
+          <View style={styles.listBody}>
             {offered.map((kind) => {
               const spec = BET_CATALOG[kind];
               const price = betPrice(ctx.rules, kind)!;
@@ -117,42 +149,8 @@ function BetSlip({ visible, ctx, onClose }: { visible: boolean; ctx: TableCtx; o
                 </Pressable>
               );
             })}
-          </ScrollView>
-          <View style={styles.stakeRow} accessibilityRole="radiogroup" accessibilityLabel="Stake">
-            {STAKES.map((v) => (
-              <Pressable
-                key={v}
-                onPress={() => setStake(v)}
-                disabled={v > chips}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: stake === v, disabled: v > chips }}
-                style={[styles.stake, stake === v && styles.stakeOn, v > chips && styles.disabled]}
-              >
-                <Text style={styles.stakeText}>
-                  {v} {CHIP}
-                </Text>
-              </Pressable>
-            ))}
           </View>
-          {error && <Text style={styles.error}>{error}</Text>}
-          <View style={styles.actions}>
-            <Pressable onPress={onClose} style={styles.cancel} accessibilityRole="button">
-              <Text style={styles.cancelText}>Close</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => void place()}
-              disabled={!pick || busy || stake > chips || full}
-              style={[styles.place, (!pick || busy || stake > chips || full) && styles.disabled]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.placeText}>
-                {pick ? `Place ${stake} ${CHIP} → ${Math.floor((stake * betPrice(ctx.rules, pick)!.payoutX100) / 100)} ${CHIP}` : 'Pick a bet'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -239,12 +237,7 @@ const styles = StyleSheet.create({
   slipButton: { minHeight: 44, borderRadius: 10, borderWidth: 1.5, borderColor: colors.chip, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   slipText: { color: colors.chip, fontWeight: '800' },
   slipHint: { color: colors.textMuted, fontSize: 12 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.surfaceRaised, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, gap: 10, maxHeight: '88%' },
-  sheetHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sheetTitle: { color: colors.text, fontWeight: '800', fontSize: 18 },
   muted: { color: colors.textMuted, fontSize: 13 },
-  list: { flexGrow: 0 },
   listBody: { gap: 8 },
   card: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 2, borderColor: 'transparent' },
   cardOn: { borderColor: colors.chip },

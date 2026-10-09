@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import type { TurnResult } from '@risky-chess/shared';
 
@@ -27,27 +28,43 @@ const bank = new Map<Sfx, { players: AudioPlayer[]; next: number }>();
 
 /**
  * Creates one long-lived player per sound so playback never waits on loading.
- * Call once at startup; safe to call again.
+ * Call once at startup; safe to call again. On the web, browsers refuse audio
+ * until the page has had a user gesture, so loading waits for the first
+ * playSfx (which only ever follows a tap).
  */
 export function initSfx() {
+  if (bank.size || Platform.OS === 'web') return;
+  load();
+}
+
+function load() {
   if (bank.size) return;
-  // Respect the mute switch and never pause the player's own music.
-  void setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => {});
-  for (const name of Object.keys(SOURCES) as Sfx[]) {
-    const players = Array.from({ length: POOL[name] ?? 1 }, () => createAudioPlayer(SOURCES[name]));
-    bank.set(name, { players, next: 0 });
+  try {
+    // Respect the mute switch and never pause the player's own music.
+    void setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => {});
+    for (const name of Object.keys(SOURCES) as Sfx[]) {
+      const players = Array.from({ length: POOL[name] ?? 1 }, () => createAudioPlayer(SOURCES[name]));
+      bank.set(name, { players, next: 0 });
+    }
+  } catch {
+    // No audio backend (e.g. an unsupported browser): the game is silent, never broken.
   }
 }
 
 /** Fire-and-forget. Never await this on an interaction path. */
 export function playSfx(name: Sfx) {
+  if (!bank.size) load();
   const entry = bank.get(name);
   if (!entry) return;
   const player = entry.players[entry.next];
   entry.next = (entry.next + 1) % entry.players.length;
   if (!player) return;
-  void player.seekTo(0).catch(() => {});
-  player.play();
+  try {
+    void player.seekTo(0).catch(() => {});
+    player.play();
+  } catch {
+    // Autoplay policy or a released player: silence is fine.
+  }
 }
 
 /** The sound for the move a turn actually played, chess.js flags first. */

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "sim:dice": "tsx scripts/loaded-dice-sim.ts",
     "sim:market": "tsx scripts/market-sim.ts",
-    "price:bets": "tsx scripts/price-bets.ts"
+    "price:bets": "tsx scripts/price-bets.ts",
+    "gen:puzzles": "tsx scripts/gen-puzzles.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

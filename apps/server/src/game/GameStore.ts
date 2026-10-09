@@ -3,7 +3,6 @@ import type { Ack, Color, GameSession, PropBet } from '@risky-chess/shared';
 /** Server-side record; only `session` is ever sent to clients. */
 export interface GameRecord {
   session: GameSession;
-  tokens: Partial<Record<Color, string>>;
   /** Socket currently bound to each seat, so a stale socket's disconnect is ignored. */
   connections: Partial<Record<Color, string>>;
   /** When each disconnected seat forfeits (pvp only). */

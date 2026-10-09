@@ -1,8 +1,9 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { io as connect, type Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import type { Ack, ClientToServerEvents, MoveInput, ServerToClientEvents, TurnResult, TurnStartedPayload } from '@risky-chess/shared';
 import { createApp, type App } from '../app';
+import { connectAs } from './helpers';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 const m = (lan: string): MoveInput => ({ from: lan.slice(0, 2), to: lan.slice(2, 4) }) as MoveInput;
@@ -19,13 +20,12 @@ async function start(tossRng?: { int: (n: number) => number }) {
   app = createApp(tossRng ? { tossRng } : {});
   await new Promise<void>((r) => app.http.listen(0, r));
   url = `http://localhost:${(app.http.address() as AddressInfo).port}`;
-  const client = async () => {
-    const c: Client = connect(url, { transports: ['websocket'], forceNew: true });
+  const client = async (name: string) => {
+    const c = (await connectAs(app, url, name)) as Client;
     clients.push(c);
-    await new Promise<void>((r) => c.once('connect', () => r()));
     return c;
   };
-  const [a, b] = [await client(), await client()];
+  const [a, b] = [await client('alice'), await client('bob')];
   const call = <T,>(c: Client, ev: string, p: unknown) => new Promise<Ack<T>>((r) => (c as unknown as Socket).emit(ev, p, r));
   const created = await call<{ gameId: string }>(a, 'create_game', { mode: 'pvp', displayName: 'A', color: 'w', rules: { modes: ['all_in'] } });
   if (!created.ok) throw new Error(created.message);

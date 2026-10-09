@@ -1,5 +1,7 @@
 import type { Color, CoinToss, ResolvedMove } from './moves';
 import type { GameRules, ModeState, Odds, TurnEffect, Wallet } from './modes';
+import type { Visibility } from './lobby';
+import type { Settlement } from './wallet';
 
 export type GameMode = 'pvp' | 'bot';
 
@@ -52,6 +54,8 @@ export interface TurnResult {
 
 export interface PlayerSlot {
   playerId: string;
+  /** The account in this seat; absent for the bot. */
+  userId?: string;
   displayName: string;
   isBot: boolean;
   connected: boolean;
@@ -79,6 +83,16 @@ export interface GameSession {
   history: TurnResult[];
   outcome?: GameOutcome;
   rules: GameRules;
+  /** Cents each seat paid to sit down; 0 on a free table and in every bot game. */
+  buyInCents: number;
+  /** buyInCents / 100: what one table chip is worth. */
+  chipValueCents: number;
+  /** Public tables are listed in the lobby and priced for spectators. */
+  visibility: Visibility;
+  /** The seat that created the table. */
+  host: Color;
+  /** How the pot was paid out, once the game is over (paid tables only). */
+  settlement?: Settlement;
   /** Present when any chip mode is on. */
   wallet?: Wallet;
   modeState: ModeState;

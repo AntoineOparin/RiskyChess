@@ -1,7 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { io as connect, type Socket } from 'socket.io-client';
+import { caller, connectAs } from './helpers';
+import type { Socket } from 'socket.io-client';
 import type { ClientToServerEvents, MoveInput, ServerToClientEvents, TurnResult, TurnStartedPayload } from '@risky-chess/shared';
 import { seededRng, verifyToss } from '@risky-chess/engine';
 import { createApp, type App } from '../app';
@@ -28,10 +29,10 @@ describe('commit-reveal tosses (manager)', () => {
 
   it('publishes sha256(seed) before the turn and reveals a verifiable seed after it', async () => {
     const t = setup();
-    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, 'cw');
+    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, caller('cw'));
     if (!w.ok) throw new Error();
     const id = w.data.gameId;
-    t.manager.join({ gameId: id, displayName: 'B' }, 'cb');
+    t.manager.join({ gameId: id, displayName: 'B' }, caller('cb'));
     await flush();
 
     const commitment = t.started()[0]?.commitment;
@@ -57,7 +58,7 @@ describe('commit-reveal tosses (manager)', () => {
 
   it('supplies a client seed when the mover sends none, and the bot is verifiable too', async () => {
     const t = setup();
-    const res = t.manager.create({ mode: 'bot', displayName: 'A', color: 'w' }, 'c');
+    const res = t.manager.create({ mode: 'bot', displayName: 'A', color: 'w' }, caller('c'));
     if (!res.ok) throw new Error();
     await flush();
     t.manager.submit('w', { gameId: res.data.gameId, turnNumber: 1, clientSubmissionId: 's', moveA: m('e2e4'), moveB: m('d2d4') });
@@ -69,21 +70,21 @@ describe('commit-reveal tosses (manager)', () => {
 
   it('delivers the pending commitment to a rejoining player and never the seed', async () => {
     const t = setup();
-    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, 'cw');
+    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, caller('cw'));
     if (!w.ok) throw new Error();
-    t.manager.join({ gameId: w.data.gameId, displayName: 'B' }, 'cb');
+    t.manager.join({ gameId: w.data.gameId, displayName: 'B' }, caller('cb'));
     await flush();
     t.manager.disconnect(w.data.gameId, 'w', 'cw');
-    const back = t.manager.rejoin({ gameId: w.data.gameId, playerToken: w.data.playerToken }, 'cw2');
+    const back = t.manager.rejoin({ gameId: w.data.gameId }, caller('cw2'));
     expect(back.ok && back.data.session.pendingCommitment).toBe(t.started()[0]?.commitment);
     expect(JSON.stringify(back)).not.toContain(t.store.get(w.data.gameId)!.turnSeeds.get(1)!);
   });
 
   it('keeps the committed seed when a submission is rejected', async () => {
     const t = setup();
-    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, 'cw');
+    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, caller('cw'));
     if (!w.ok) throw new Error();
-    t.manager.join({ gameId: w.data.gameId, displayName: 'B' }, 'cb');
+    t.manager.join({ gameId: w.data.gameId, displayName: 'B' }, caller('cb'));
     await flush();
     const before = t.store.get(w.data.gameId)!.turnSeeds.get(1);
     t.manager.submit('w', { gameId: w.data.gameId, turnNumber: 1, clientSubmissionId: 'bad', moveA: m('e2e4'), moveB: m('e2e4') });
@@ -106,9 +107,8 @@ describe('commit-reveal tosses (sockets)', () => {
   });
 
   it('every resolved turn verifies against the commitment announced before it', async () => {
-    const c: Socket<ServerToClientEvents, ClientToServerEvents> = connect(url, { transports: ['websocket'], forceNew: true });
+    const c = await connectAs(app, url, 'alice');
     clients.push(c);
-    await new Promise<void>((r) => c.once('connect', () => r()));
     const commitments = new Map<number, string>();
     const results: TurnResult[] = [];
     c.on('turn_started', (p) => p.commitment && commitments.set(p.turnNumber, p.commitment));

@@ -1,8 +1,9 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { io as connect, type Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import type { Ack, ClientToServerEvents, GameOutcome, MoveInput, ServerToClientEvents, TurnResult } from '@risky-chess/shared';
 import { createApp, type App } from '../app';
+import { connectAs } from './helpers';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -23,10 +24,9 @@ afterEach(async () => {
   await app.close();
 });
 
-async function client(): Promise<Client> {
-  const c: Client = connect(url, { transports: ['websocket'], forceNew: true });
+async function client(name: string): Promise<Client> {
+  const c = (await connectAs(app, url, name)) as Client;
   clients.push(c);
-  await new Promise<void>((r) => c.once('connect', () => r()));
   return c;
 }
 
@@ -38,7 +38,7 @@ const next = <E extends keyof ServerToClientEvents>(c: Client, e: E) =>
 
 describe('socket integration', () => {
   it('plays a full pvp game to checkmate', async () => {
-    const [a, b] = [await client(), await client()];
+    const [a, b] = [await client('alice'), await client('bob')];
     const created = await call<{ gameId: string }>((ack) => a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w' }, ack as never));
     if (!created.ok) throw new Error(created.message);
     const gameId = created.data.gameId;
@@ -68,7 +68,7 @@ describe('socket integration', () => {
   });
 
   it('rejects malformed payloads and unseated sockets', async () => {
-    const a = await client();
+    const a = await client('alice');
     const bad = await call((ack) => a.emit('create_game', { mode: 'chaos' } as never, ack as never));
     expect(bad).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
     const unseated = await call((ack) =>
@@ -77,22 +77,21 @@ describe('socket integration', () => {
     expect(unseated).toMatchObject({ ok: false, error: 'UNAUTHORIZED' });
   });
 
-  it('lets a dropped player rejoin by token and keep playing', async () => {
-    const [a, b] = [await client(), await client()];
-    const created = await call<{ gameId: string; playerToken: string }>((ack) =>
-      a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w' }, ack as never),
-    );
+  it('lets a dropped player rejoin by account and keep playing', async () => {
+    const [a, b] = [await client('alice'), await client('bob')];
+    const created = await call<{ gameId: string }>((ack) => a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w' }, ack as never));
     if (!created.ok) throw new Error();
-    const { gameId, playerToken } = created.data;
+    const { gameId } = created.data;
     await call((ack) => b.emit('join_game', { gameId, displayName: 'Bo' }, ack as never));
 
     const dropped = next(b, 'opponent_disconnected');
     a.disconnect();
     expect(await dropped).toMatchObject({ color: 'w' });
 
-    const a2 = await client();
+    const a2 = await connectAs(app, url, { token: (a as Client & { token: string }).token });
+    clients.push(a2);
     const back = next(b, 'opponent_reconnected');
-    const rejoined = await call<{ session: { status: string } }>((ack) => a2.emit('rejoin_game', { gameId, playerToken }, ack as never));
+    const rejoined = await call<{ session: { status: string } }>((ack) => a2.emit('rejoin_game', { gameId }, ack as never));
     expect(rejoined.ok && rejoined.data.session.status).toBe('awaiting_submission');
     await back;
 
@@ -103,7 +102,7 @@ describe('socket integration', () => {
   });
 
   it('creates a High Roller game, delivers each seat its own start, and gates bets', async () => {
-    const [a, b] = [await client(), await client()];
+    const [a, b] = [await client('alice'), await client('bob')];
     const rules = { modes: ['loaded_dice', 'odds_market', 'all_in', 'side_bets'] as const };
     const created = await call<{ gameId: string }>((ack) =>
       a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w', rules: { modes: [...rules.modes] } }, ack as never),

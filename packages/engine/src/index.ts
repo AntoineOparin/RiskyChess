@@ -8,3 +8,5 @@ export * from './resolve';
 export * from './bot';
 export * from './modes';
 export * from "./fairness";
+export * from './settlement';
+export * from './pricing';

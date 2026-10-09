@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { caller } from './helpers';
 import type { Color, GameRules, GameSession, MoveInput, PropBet, ServerToClientEvents } from '@risky-chess/shared';
 import { MODE_REGISTRY, seededRng, type ModeModule, type Rng } from '@risky-chess/engine';
 import { GameManager, type Emit, type EmitTo } from '../game/GameManager';
@@ -29,9 +30,9 @@ function setup(tossRng: Rng = seededRng(1)) {
 }
 
 async function pvp(t: ReturnType<typeof setup>, rules?: GameRules) {
-  const w = t.manager.create({ mode: 'pvp', displayName: 'Ann', color: 'w', ...(rules ? { rules } : {}) }, 'cw');
+  const w = t.manager.create({ mode: 'pvp', displayName: 'Ann', color: 'w', ...(rules ? { rules } : {}) }, caller('cw'));
   if (!w.ok) throw new Error();
-  const b = t.manager.join({ gameId: w.data.gameId, displayName: 'Bo' }, 'cb');
+  const b = t.manager.join({ gameId: w.data.gameId, displayName: 'Bo' }, caller('cb'));
   if (!b.ok) throw new Error();
   await flush();
   return w.data.gameId;
@@ -122,7 +123,7 @@ describe('redaction', () => {
     expect(forW.ok && forW.data.session.modeState.bets).toEqual({ w: [bet], b: { count: 0 } });
     expect(JSON.stringify(forB)).not.toContain('opp_promotes');
 
-    const rejoined = t.manager.rejoin({ gameId: id, playerToken: t.store.get(id)!.tokens.b! }, 'cb2');
+    const rejoined = t.manager.rejoin({ gameId: id }, caller('cb2'));
     expect(JSON.stringify(rejoined)).not.toContain('opp_promotes');
     // The stored session itself is untouched.
     expect(t.state(id).modeState.bets?.w).toEqual([bet]);
@@ -154,7 +155,7 @@ describe('side bets gating', () => {
 describe('bot under every mode', () => {
   it('plays High Roller games against itself without errors', async () => {
     const t = setup(seededRng(8));
-    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'w', rules: HIGH_ROLLER }, 'c');
+    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'w', rules: HIGH_ROLLER }, caller('c'));
     if (!res.ok) throw new Error();
     await flush();
     const id = res.data.gameId;

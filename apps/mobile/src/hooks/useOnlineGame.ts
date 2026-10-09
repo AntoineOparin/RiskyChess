@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow';
 import type { MoveInput, TurnExtras } from '@risky-chess/shared';
 import { newSubmissionId } from '../lib/chess';
 import { newClientSeed } from '../lib/fairness';
-import { loadSeat } from '../net/seats';
 import { getSocket, request } from '../net/socket';
 import { useGameStore } from '../state/gameStore';
 import { logger } from '../lib/log';
@@ -41,12 +40,7 @@ export function useOnlineGame(gameId: string) {
     };
 
     const rejoin = async () => {
-      const seat = await loadSeat(gameId);
-      if (!seat) {
-        log.warn('no stored seat for game', { gameId });
-        return st().set({ error: 'You are not seated in this game.' });
-      }
-      const res = await request('rejoin_game', { gameId, playerToken: seat.playerToken });
+      const res = await request('rejoin_game', { gameId });
       if (res.ok) {
         log.info('rejoined', { gameId, color: res.data.color, turnNumber: res.data.session.turnNumber, status: res.data.session.status });
         st().setSession(res.data.session, res.data.color);

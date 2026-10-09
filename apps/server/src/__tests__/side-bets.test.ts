@@ -1,6 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { io as connect, type Socket } from 'socket.io-client';
+import { caller, connectAs } from './helpers';
+import type { Socket } from 'socket.io-client';
 import type { Ack, ClientToServerEvents, Color, GameRules, GameSession, MoveInput, PropBet, ServerToClientEvents } from '@risky-chess/shared';
 import { BET_KINDS, seededRng } from '@risky-chess/engine';
 import { createApp, type App } from '../app';
@@ -23,9 +24,9 @@ describe('placeBet (manager)', () => {
     return { manager, store, events, rules };
   }
   async function pvp(t: ReturnType<typeof setup>) {
-    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w', rules: t.rules }, 'cw');
+    const w = t.manager.create({ mode: 'pvp', displayName: 'A', color: 'w', rules: t.rules }, caller('cw'));
     if (!w.ok) throw new Error();
-    t.manager.join({ gameId: w.data.gameId, displayName: 'B' }, 'cb');
+    t.manager.join({ gameId: w.data.gameId, displayName: 'B' }, caller('cb'));
     await Promise.resolve();
     return w.data.gameId;
   }
@@ -96,7 +97,7 @@ describe('placeBet (manager)', () => {
 
   it('lets the bot place its sealed bets before the game starts', async () => {
     const t = setup({ modes: ['side_bets', 'all_in'] });
-    const res = t.manager.create({ mode: 'bot', displayName: 'A', color: 'w', rules: t.rules }, 'c');
+    const res = t.manager.create({ mode: 'bot', displayName: 'A', color: 'w', rules: t.rules }, caller('c'));
     if (!res.ok) throw new Error();
     await Promise.resolve();
     const start = t.events.find((e) => e.event === 'game_started')!.payload as GameSession;
@@ -119,13 +120,12 @@ describe('redaction over sockets', () => {
     app = createApp({ tossRng: { int: () => 0 } });
     await new Promise<void>((r) => app.http.listen(0, r));
     const url = `http://localhost:${(app.http.address() as AddressInfo).port}`;
-    const client = async () => {
-      const c: Socket<ServerToClientEvents, ClientToServerEvents> = connect(url, { transports: ['websocket'], forceNew: true });
+    const client = async (name: string) => {
+      const c = (await connectAs(app, url, name)) as Socket<ServerToClientEvents, ClientToServerEvents>;
       clients.push(c);
-      await new Promise<void>((r) => c.once('connect', () => r()));
       return c;
     };
-    const [a, b] = [await client(), await client()];
+    const [a, b] = [await client('alice'), await client('bob')];
     const call = <T,>(c: Socket, ev: string, p: unknown) => new Promise<Ack<T>>((r) => c.emit(ev, p, r));
     const seen: { event: string; payload: unknown; over: boolean }[] = [];
     let over = false;

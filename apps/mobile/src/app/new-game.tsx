@@ -4,7 +4,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MODE_PRESETS, type GameMode, type ModeId, type ModePreset } from '@risky-chess/shared';
 import { ModeCard } from '../components/ModeCard';
 import { activeUi, registry, UI_ORDER } from '../modes/registry';
-import { saveSeat } from '../net/seats';
 import { request } from '../net/socket';
 import { colors } from '../lib/theme';
 import { useOnline } from '../net/useOnline';
@@ -41,7 +40,6 @@ export default function NewGame() {
     try {
       const res = await request('create_game', { mode, displayName, color: 'random', rules: { modes } });
       if (!res.ok) return setError(res.message);
-      await saveSeat(res.data);
       router.replace({ pathname: '/game/[id]', params: { id: res.data.gameId } });
     } finally {
       setBusy(false);

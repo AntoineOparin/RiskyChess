@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { caller } from './helpers';
 import type { MoveInput } from '@risky-chess/shared';
 import { seededRng } from '@risky-chess/engine';
 import { GameManager } from '../game/GameManager';
@@ -20,9 +21,9 @@ describe('logging', () => {
 
     const store = new InMemoryGameStore();
     const manager = new GameManager(store, () => {}, { rng: seededRng(1) });
-    const w = manager.create({ mode: 'pvp', displayName: 'A', color: 'w', rules: { modes: ['loaded_dice'] } }, 'cw');
+    const w = manager.create({ mode: 'pvp', displayName: 'A', color: 'w', rules: { modes: ['loaded_dice'] } }, caller('cw'));
     if (!w.ok) throw new Error();
-    manager.join({ gameId: w.data.gameId, displayName: 'B' }, 'cb');
+    manager.join({ gameId: w.data.gameId, displayName: 'B' }, caller('cb'));
     await Promise.resolve();
     const record = store.get(w.data.gameId)!;
 
@@ -40,7 +41,7 @@ describe('logging', () => {
   it('is silent by default under the test runner', () => {
     const spy = vi.spyOn(console, 'log');
     const manager = new GameManager(new InMemoryGameStore(), () => {}, { rng: seededRng(1) });
-    manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, 'c');
+    manager.create({ mode: 'pvp', displayName: 'A', color: 'w' }, caller('c'));
     expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { caller } from './helpers';
 import type { MoveInput, TurnResult } from '@risky-chess/shared';
 import { seededRng, verifyToss } from '@risky-chess/engine';
 import { GameManager } from '../game/GameManager';
@@ -13,9 +14,9 @@ async function game() {
   const resolved: TurnResult[] = [];
   const store = new InMemoryGameStore();
   const manager = new GameManager(store, (_g, e, ...a) => e === 'turn_resolved' && resolved.push(a[0] as TurnResult), { rng: seededRng(1) });
-  const w = manager.create({ mode: 'pvp', displayName: 'A', color: 'w', rules: { modes: ['loaded_dice'] } }, 'cw');
+  const w = manager.create({ mode: 'pvp', displayName: 'A', color: 'w', rules: { modes: ['loaded_dice'] } }, caller('cw'));
   if (!w.ok) throw new Error();
-  manager.join({ gameId: w.data.gameId, displayName: 'B' }, 'cb');
+  manager.join({ gameId: w.data.gameId, displayName: 'B' }, caller('cb'));
   await Promise.resolve();
   return { manager, store, id: w.data.gameId, resolved };
 }

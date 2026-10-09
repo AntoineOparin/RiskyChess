@@ -62,6 +62,50 @@ export const ECONOMY = {
 /** Odds bounds in basis points: no mode combination can make a slot certain. */
 export const ODDS = { BASE: 5000, MIN: 1000, MAX: 9000 } as const;
 
+// ---------- platform ----------
+
+/** Table buy-ins in cents; 0 is a free table (no settlement). Bot games are always free. */
+export const BUY_IN_TIERS_CENTS: readonly number[] = [0, 1_000, 5_000, 25_000, 100_000];
+/** Share of a decisive pot the house keeps, in basis points. */
+export const RAKE_BPS = 500;
+/** Credited once when an account is created. */
+export const SIGNUP_BONUS_CENTS = 100_000;
+/** Mock top-up amounts; there is no real payment flow. */
+export const DEPOSIT_PRESETS_CENTS: readonly number[] = [1_000, 5_000, 10_000, 50_000];
+/** A public table nobody joins is cancelled (and refunded) after this long. */
+export const OPEN_TABLE_TTL_MS = 10 * 60 * 1000;
+export const USERNAME = { MIN: 3, MAX: 16, PATTERN: /^[a-zA-Z0-9_]+$/ } as const;
+
+export const SPORTSBOOK = {
+  /** Overround: the three prices sum to 1 + MARGIN. */
+  MARGIN: 0.06,
+  MIN_STAKE_CENTS: 100,
+  MAX_STAKE_CENTS: 50_000,
+  /** Open stake one account may hold on one game. */
+  MAX_EXPOSURE_CENTS: 100_000,
+  /** How far the line may move (×100) between the client's view and the server before a bet is refused. */
+  ODDS_TOLERANCE_X100: 5,
+  MIN_ODDS_X100: 101,
+  MAX_ODDS_X100: 5_000,
+} as const;
+
+export const ORIGINALS = {
+  MIN_STAKE_CENTS: 100,
+  MAX_STAKE_CENTS: 50_000,
+  COIN_DUEL: {
+    /** House edge on the fair price. */
+    EDGE: 0.03,
+    /** Random plies played from the start position to deal a middlegame. */
+    DEAL_PLIES: { min: 8, max: 20 },
+    /** A dealt round must be bet within this long. */
+    DEAL_TTL_MS: 60_000,
+  },
+  PUZZLE_TIERS: {
+    mate1: { seconds: 15, payoutX100: 150 },
+    mate2: { seconds: 30, payoutX100: 300 },
+  },
+} as const;
+
 export const usesChips = (rules: GameRules): boolean => rules.modes.some((m) => CHIP_MODES.includes(m));
 export const hasMode = (rules: GameRules | undefined, mode: ModeId): boolean => !!rules?.modes.includes(mode);
 export const isClassic = (rules: GameRules | undefined): boolean => !rules || rules.modes.length === 0;

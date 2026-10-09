@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { saveSeat } from '../net/seats';
 import { request, SERVER_URL } from '../net/socket';
 import { useOnline } from '../net/useOnline';
 import { colors } from '../lib/theme';
@@ -21,7 +20,6 @@ export default function Home() {
     try {
       const res = await request('join_game', { gameId: code.trim().toUpperCase(), displayName });
       if (!res.ok) return setError(res.message);
-      await saveSeat(res.data);
       router.push({ pathname: '/game/[id]', params: { id: res.data.gameId, joined: '1' } });
     } finally {
       setBusy(false);

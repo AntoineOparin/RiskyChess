@@ -10,3 +10,4 @@ export * from './constants';
 export * from './schemas';
 export * from './betOdds';
 export * from './money';
+export * from './puzzles';

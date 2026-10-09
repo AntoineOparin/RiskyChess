@@ -10,3 +10,5 @@ export * from './modes';
 export * from "./fairness";
 export * from './settlement';
 export * from './pricing';
+export * from './originals/coinDuel';
+export * from './originals/puzzles';

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { matchPayout } from '@risky-chess/engine';
 import { SIGNUP_BONUS_CENTS, SPORTSBOOK, type Ack, type MatchBet, type MatchLine, type MoveInput } from '@risky-chess/shared';
 import { createApp, type App } from '../app';
-import { HOUSE_USER_ID } from '../db/ledger';
+import { HOUSE_USER_ID, HOUSE_BANKROLL_CENTS } from '../db/ledger';
 import { connectAs, registerUser, type Client } from './helpers';
 
 let app: App;
@@ -53,7 +53,7 @@ describe('sportsbook', () => {
     expect(placed.data.bet).toMatchObject({ side: 'b', stakeCents: 2_000, oddsX100: line.b, status: 'open' });
     expect(placed.data.balanceCents).toBe(SIGNUP_BONUS_CENTS - 2_000);
     expect((await balanceEvent).balanceCents).toBe(SIGNUP_BONUS_CENTS - 2_000);
-    expect(app.services.ledger.balance(HOUSE_USER_ID)).toBe(2_000);
+    expect(app.services.ledger.balance(HOUSE_USER_ID)).toBe(HOUSE_BANKROLL_CENTS + 2_000);
     expect(app.services.ledger.totalCents()).toBe(total);
     expect(app.lobby.snapshot().markets[0]).toMatchObject({ gameId, handleCents: 2_000 });
 
@@ -79,9 +79,9 @@ describe('sportsbook', () => {
     expect(s.bet).toMatchObject({ id: placed.data.bet.id, status: 'won', payoutCents: payout });
     expect(s.balanceCents).toBe(SIGNUP_BONUS_CENTS - 2_000 + payout);
     expect(app.services.ledger.balance(cleo.id)).toBe(s.balanceCents);
-    // The house only held the stake, so the mock bankroll topped itself up by the shortfall; nothing else moved.
-    expect(app.services.ledger.totalCents()).toBe(total + Math.max(0, payout - 2_000));
-    expect(app.services.ledger.balance(HOUSE_USER_ID)).toBe(0);
+    // The bankroll paid the difference; nothing was minted.
+    expect(app.services.ledger.totalCents()).toBe(total);
+    expect(app.services.ledger.balance(HOUSE_USER_ID)).toBe(HOUSE_BANKROLL_CENTS + 2_000 - payout);
     expect(app.services.bets.matchBetsOf(cleo.id)[0]).toMatchObject({ status: 'won', payoutCents: payout });
     expect(app.services.archive.feed().map((f) => f.game)).toContain('sportsbook');
   });

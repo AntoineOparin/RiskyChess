@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { chipDelta, previewOdds } from '@risky-chess/engine';
-import { CLASSIC_RULES, type Color, type GameRules, type ModeState, type MoveInput, type TurnExtras, type TurnResult, type Wallet, type GameOutcome } from '@risky-chess/shared';
+import { CLASSIC_RULES, type Color, type GameRules, type ModeState, type MoveInput, type Settlement, type TurnExtras, type TurnResult, type Wallet, type GameOutcome } from '@risky-chess/shared';
 import { useMoveSelection } from '../hooks/useMoveSelection';
 import { describeEffects } from '../lib/effects';
 import { logger } from '../lib/log';
@@ -25,6 +25,8 @@ import { OddsBadge } from './OddsBadge';
 import { PlayerBar } from './PlayerBar';
 import { PromotionPicker } from './PromotionPicker';
 import { RulesSheet } from './RulesSheet';
+import { SettlementCard } from './SettlementCard';
+import { Button, Sheet } from './ui';
 
 /** The table's mode setup, from the viewer's side. Omitted for a classic game. */
 export interface TableInfo {
@@ -35,6 +37,10 @@ export interface TableInfo {
   turnNumber: number;
   online: boolean;
   placeBet?: (req: BetRequest) => Promise<BetOutcome>;
+  /** Paid table: what each table chip is worth. */
+  chipValueCents?: number | undefined;
+  /** How the pot was paid, once the game is over. */
+  settlement?: Settlement | undefined;
 }
 
 export interface GameViewProps {
@@ -86,6 +92,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
   const oppColor = other(myColor);
   const rules = table?.rules ?? CLASSIC_RULES;
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [resignOpen, setResignOpen] = useState(false);
 
   // Chips as of what has been revealed: turns still queued for a reveal are not counted yet.
   const shownWallet = useMemo(() => {
@@ -206,11 +213,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
     return `${names.opponent} is choosing…`;
   })();
 
-  const confirmResign = () =>
-    Alert.alert('Resign?', 'This ends the game as a loss.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Resign', style: 'destructive', onPress: onResign },
-    ]);
+  const confirmResign = () => setResignOpen(true);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -220,6 +223,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
         capturedColor={myColor}
         score={material[oppColor].score}
         chips={shownWallet?.[oppColor]}
+        chipValueCents={table?.chipValueCents}
         accessory={accessory(oppColor)}
       />
       <View style={{ width: size, height: size }}>
@@ -257,6 +261,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
         capturedColor={oppColor}
         score={material[myColor].score}
         chips={shownWallet?.[myColor]}
+        chipValueCents={table?.chipValueCents}
         accessory={accessory(myColor)}
       />
 
@@ -312,6 +317,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
           <FairBadge result={lastShown} onPress={onOpenFairness} />
         </View>
       )}
+      {settledOutcome && table?.settlement && <SettlementCard settlement={table.settlement} myColor={myColor} />}
       {settledOutcome &&
         modes
           .filter(([, ui]) => ui.GameOverCard)
@@ -335,6 +341,27 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
       )}
       <PromotionPicker visible={sel.pendingPromotion !== null} color={myColor} onPick={sel.choosePromotion} />
       <RulesSheet visible={rulesOpen} rules={rules} onClose={() => setRulesOpen(false)} />
+      <Sheet
+        visible={resignOpen}
+        title="Resign?"
+        onClose={() => setResignOpen(false)}
+        footer={
+          <View style={styles.resignActions}>
+            <Button label="Keep playing" variant="secondary" onPress={() => setResignOpen(false)} style={styles.grow} />
+            <Button
+              label="Resign"
+              variant="danger"
+              onPress={() => {
+                setResignOpen(false);
+                onResign();
+              }}
+              style={styles.grow}
+            />
+          </View>
+        }
+      >
+        <Text style={styles.resignBody}>{table?.settlement === undefined && (table?.chipValueCents ?? 0) > 0 ? 'This ends the game as a loss: your opponent takes the pot.' : 'This ends the game as a loss.'}</Text>
+      </Sheet>
     </ScrollView>
   );
 }
@@ -353,4 +380,7 @@ const styles = StyleSheet.create({
   helpText: { color: colors.textMuted, fontWeight: '800', fontSize: 13 },
   action: { backgroundColor: colors.slotA, borderRadius: 12, minHeight: 56, alignItems: 'center', justifyContent: 'center' },
   actionText: { color: '#111', fontWeight: '800', fontSize: 17 },
+  resignActions: { flexDirection: 'row', gap: 10 },
+  grow: { flex: 1 },
+  resignBody: { color: colors.text, fontSize: 15, lineHeight: 21 },
 });

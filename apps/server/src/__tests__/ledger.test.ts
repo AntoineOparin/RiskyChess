@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SIGNUP_BONUS_CENTS, START_FEN, type GameSession } from '@risky-chess/shared';
 import { settleTable } from '@risky-chess/engine';
 import { createServices } from '../platform';
-import { InsufficientFunds, HOUSE_USER_ID } from '../db/ledger';
+import { InsufficientFunds, HOUSE_BANKROLL_CENTS, HOUSE_USER_ID } from '../db/ledger';
 
 function user(services: ReturnType<typeof createServices>, name: string) {
   const out = services.auth.register(name);
@@ -83,7 +83,7 @@ describe('wallet', () => {
     s.wallet.settleGame(sess, settlement);
     s.wallet.settleGame(sess, settlement); // idempotent
     expect(s.ledger.balance(b.id)).toBe(SIGNUP_BONUS_CENTS - 5_000 + settlement.payouts.b);
-    expect(s.ledger.balance(HOUSE_USER_ID)).toBe(settlement.rakeCents);
+    expect(s.ledger.balance(HOUSE_USER_ID)).toBe(HOUSE_BANKROLL_CENTS + settlement.rakeCents);
     expect(s.ledger.totalCents()).toBe(total);
     expect(s.escrow.held('G1')).toEqual([]);
   });

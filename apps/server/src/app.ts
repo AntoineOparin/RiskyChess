@@ -8,6 +8,7 @@ import { InMemoryGameStore } from './game/GameStore';
 import { routes } from './http/routes';
 import { createServices, type Services } from './platform';
 import { Lobby } from './lobby/Lobby';
+import { createOriginals, originalsFeature } from './originals/feature';
 import { registerHandlers, LOBBY_ROOM, room, seatRoom, userRoom, type Feature, type GameServer } from './socket/handlers';
 import { lobbyFeature } from './socket/features/lobby';
 import { sportsbookFeature } from './socket/features/sportsbook';
@@ -20,6 +21,7 @@ export interface App {
   services: Services;
   lobby: Lobby;
   sportsbook: Sportsbook;
+  originals: ReturnType<typeof createOriginals>;
   close(): Promise<void>;
 }
 
@@ -63,7 +65,8 @@ export function createApp(opts: AppOptions = {}): App {
     voided: (gameId) => sportsbook.voidAll(gameId),
   };
 
-  const features: Feature[] = [lobbyFeature(lobby), sportsbookFeature(sportsbook)];
+  const originals = createOriginals(services, (userId, event, ...args) => io.to(userRoom(userId)).emit(event, ...args));
+  const features: Feature[] = [lobbyFeature(lobby), sportsbookFeature(sportsbook), originalsFeature(originals)];
   registerHandlers(io, manager, services, features);
 
   const sweep = setInterval(() => manager.sweep(), 60 * 1000);
@@ -76,9 +79,11 @@ export function createApp(opts: AppOptions = {}): App {
     services,
     lobby,
     sportsbook,
+    originals,
     close: async () => {
       clearInterval(sweep);
       lobby.dispose();
+      originals.puzzle.dispose();
       manager.dispose();
       await io.close();
       services.db.close();

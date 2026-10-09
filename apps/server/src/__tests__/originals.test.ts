@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ORIGINALS, SIGNUP_BONUS_CENTS, type MoveInput, type ServerToClientEvents } from '@risky-chess/shared';
 import { solvePuzzle, verifyCoinDuelRound } from '@risky-chess/engine';
-import { HOUSE_USER_ID } from '../db/ledger';
+import { HOUSE_BANKROLL_CENTS, HOUSE_USER_ID } from '../db/ledger';
 import { BlitzPuzzle } from '../originals/BlitzPuzzle';
 import { CoinDuel, type EmitToUser } from '../originals/CoinDuel';
 import { createServices } from '../platform';
@@ -39,8 +39,8 @@ describe('Coin Duel', () => {
     expect(res.balanceCents).toBe(SIGNUP_BONUS_CENTS - 1_000 + expectedPayout);
     expect(t.services.ledger.balance(t.user.id)).toBe(res.balanceCents);
     // The house is a mock bankroll: it may have been topped up, never more than the shortfall.
-    expect(t.services.ledger.totalCents()).toBeGreaterThanOrEqual(total);
-    expect(t.services.ledger.balance(HOUSE_USER_ID)).toBe(Math.max(0, 1_000 - expectedPayout));
+    expect(t.services.ledger.totalCents()).toBe(total);
+    expect(t.services.ledger.balance(HOUSE_USER_ID)).toBe(HOUSE_BANKROLL_CENTS + 1_000 - expectedPayout);
     expect(t.sent.at(-1)).toMatchObject({ userId: t.user.id, event: 'balance_updated', payload: { balanceCents: res.balanceCents } });
     expect(t.services.archive.feed()[0]).toMatchObject({ username: 'ann', game: 'coin_duel', stakeCents: 1_000, payoutCents: expectedPayout });
     expect(t.services.bets.roundsOf(t.user.id)[0]).toMatchObject({ game: 'coin_duel', nonce: 0, status: res.won ? 'won' : 'lost' });
@@ -109,7 +109,7 @@ describe('Blitz Puzzle', () => {
     expect(res.move).toBeUndefined();
     expect(res.payoutCents).toBe(0);
     expect(t.services.ledger.balance(t.user.id)).toBe(SIGNUP_BONUS_CENTS - 500);
-    expect(t.services.ledger.balance(HOUSE_USER_ID)).toBe(500);
+    expect(t.services.ledger.balance(HOUSE_USER_ID)).toBe(HOUSE_BANKROLL_CENTS + 500);
     expect(solution).toBeTruthy();
   });
 

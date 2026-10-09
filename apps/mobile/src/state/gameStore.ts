@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { logger } from '../lib/log';
 import { applyModeEffects, sideToMove } from '@risky-chess/engine';
-import type { Color, GameOutcome, GameSession, PropBet, TurnEffect, TurnResult, TurnStartedPayload, Wallet } from '@risky-chess/shared';
+import type { Color, GameOutcome, GameSession, PropBet, Settlement, TurnEffect, TurnResult, TurnStartedPayload, Wallet } from '@risky-chess/shared';
 
 interface OnlineGameState {
   session: GameSession | null;
@@ -16,7 +16,7 @@ interface OnlineGameState {
   setSession(session: GameSession, color?: Color): void;
   applyTurnResult(r: TurnResult): 'applied' | 'duplicate' | 'gap';
   applyTurnStarted(p: TurnStartedPayload): void;
-  applyGameOver(outcome: GameOutcome, settle?: { effects?: TurnEffect[]; walletAfter?: Wallet }): void;
+  applyGameOver(outcome: GameOutcome, settle?: { effects?: TurnEffect[]; walletAfter?: Wallet; settlement?: Settlement }): void;
   setOpponentPresence(color: Color, graceEndsAt: number | null): void;
   /** Game over: every bet, unsealed. */
   applyBetsRevealed(bets: Partial<Record<Color, PropBet[]>>): void;
@@ -83,6 +83,7 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
         status: 'finished',
         outcome,
         ...(settle?.walletAfter ? { wallet: settle.walletAfter } : {}),
+        ...(settle?.settlement ? { settlement: settle.settlement } : {}),
         modeState: applyModeEffects(s.modeState, settle?.effects ?? []),
       },
       opponentGraceEndsAt: null,

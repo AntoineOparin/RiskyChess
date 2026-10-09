@@ -115,4 +115,13 @@ export const MIGRATIONS: readonly { id: number; sql: string }[] = [
       CREATE INDEX feed_at ON feed (at DESC);
     `,
   },
+  {
+    id: 2,
+    // The house bankroll: sportsbook and originals payouts come out of it, so the sum of all balances stays constant.
+    sql: `
+      UPDATE users SET balance_cents = balance_cents + 1000000000 WHERE id = 'house';
+      INSERT INTO transactions (id, user_id, kind, amount_cents, balance_after, idem_key, created_at)
+        VALUES ('house-bankroll', 'house', 'bonus', 1000000000, (SELECT balance_cents FROM users WHERE id = 'house'), 'house-bankroll', 0);
+    `,
+  },
 ];

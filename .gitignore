@@ -76,3 +76,6 @@ Desktop.ini
 
 # server database
 apps/server/data/
+
+# agent worktrees
+.claude/worktrees/

@@ -3,6 +3,8 @@ import { newId } from '../crypto/coin';
 import { tx, type Db } from './db';
 
 export const HOUSE_USER_ID = 'house';
+/** What migration 2 seeds the house with: payouts come out of it, so Σ balances is conserved. */
+export const HOUSE_BANKROLL_CENTS = 1_000_000_000;
 
 export interface PostInput {
   userId: string;

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { matchPayout } from '@risky-chess/engine';
-import { SPORTSBOOK, formatCents, type MatchSide } from '@risky-chess/shared';
+import { SPORTSBOOK, START_FEN, formatCents, type MatchSide } from '@risky-chess/shared';
 import { Board } from '../../components/Board/Board';
 import { BoardOverlay } from '../../components/Board/BoardOverlay';
 import { TossReveal } from '../../components/Board/TossReveal';
@@ -28,7 +28,7 @@ export default function Watch() {
   const cell = size / 8;
 
   const { current: revealing, done, settledOutcome, lastShown } = useTurnPresenter(session?.history ?? [], session?.outcome);
-  const displayFen = revealing ? revealing.fenBefore : (session?.fen ?? '8/8/8/8/8/8/8/8 w - - 0 1');
+  const displayFen = revealing ? revealing.fenBefore : (session?.fen ?? START_FEN);
   const material = useMemo(() => materialSummary(displayFen), [displayFen]);
   const skip = useCallback(() => {
     if (!revealing) return;

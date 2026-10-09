@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import type { FeedItem, OpenTable } from '@risky-chess/shared';
+import { formatCents, type FeedItem, type OpenTable } from '@risky-chess/shared';
 import { BalancePill, Banner, Button, Card, EmptyState, Money, Screen, SectionHeader, Tile } from '../../components/ui';
 import { useLobby } from '../../hooks/useLobby';
 import { colors, type as t } from '../../lib/theme';
@@ -76,7 +76,7 @@ export default function Casino() {
               </View>
             </View>
             <Button
-              label={tb.buyInCents > 0 ? `Sit down for ${formatShort(tb.buyInCents)}` : 'Sit down (free)'}
+              label={tb.buyInCents > 0 ? `Sit down for ${formatCents(tb.buyInCents)}` : 'Sit down (free)'}
               onPress={() => void join(tb.gameId)}
               loading={joining === tb.gameId}
               disabled={balance !== null && balance < tb.buyInCents}
@@ -91,8 +91,6 @@ export default function Casino() {
     </Screen>
   );
 }
-
-const formatShort = (cents: number) => `◎ ${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 const GAME_LABEL: Record<FeedItem['game'], string> = { table: 'table', sportsbook: 'sportsbook', coin_duel: 'Coin Duel', puzzle: 'Blitz Puzzle' };
 

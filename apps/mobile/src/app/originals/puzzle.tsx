@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
-import { ORIGINALS, formatCents, type PuzzleResult, type PuzzleRound, type PuzzleTier } from '@risky-chess/shared';
+import { ORIGINALS, START_FEN, formatCents, type PuzzleResult, type PuzzleRound, type PuzzleTier } from '@risky-chess/shared';
 import { Board } from '../../components/Board/Board';
 import { BoardOverlay } from '../../components/Board/BoardOverlay';
 import { PromotionPicker } from '../../components/PromotionPicker';
@@ -20,8 +20,6 @@ const TIERS: { tier: PuzzleTier; label: string; hint: string }[] = [
   { tier: 'mate2', label: 'Mate in 2', hint: `${ORIGINALS.PUZZLE_TIERS.mate2.seconds}s · ${(ORIGINALS.PUZZLE_TIERS.mate2.payoutX100 / 100).toFixed(2)}×` },
 ];
 
-const EMPTY = '8/8/8/8/8/8/8/8 w - - 0 1';
-
 /** Blitz Puzzle: stake, get a mating position picked by the committed roll, find the key move before the clock runs out. */
 export default function Puzzle() {
   const online = useOnline();
@@ -38,7 +36,8 @@ export default function Puzzle() {
   const [error, setError] = useState<string | null>(null);
   const live = !!round && !result;
   const now = useNow(live, 100);
-  const sel = useMoveSelection(round?.fen ?? EMPTY, live, true);
+  // chess.js refuses a kingless board, so the idle screen parses the start position (selection is disabled anyway).
+  const sel = useMoveSelection(round?.fen ?? START_FEN, live, true);
 
   // The server settles a round its clock ended; mirror it so the board locks.
   useEffect(() => {

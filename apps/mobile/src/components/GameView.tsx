@@ -12,7 +12,7 @@ import { useTurnPresenter } from '../hooks/useTurnPresenter';
 import { describeOutcome, materialSummary, other } from '../lib/chess';
 import { haptics } from '../lib/haptics';
 import { moveSfx, playSfx } from '../lib/sfx';
-import { colors } from '../lib/theme';
+import { colors, MAX_CONTENT_WIDTH } from '../lib/theme';
 import { Board, type Marker } from './Board/Board';
 import { BoardOverlay } from './Board/BoardOverlay';
 import { TossReveal } from './Board/TossReveal';
@@ -76,7 +76,7 @@ const marker = (m: { from: Marker['from']; to: Marker['to'] } | null | undefined
  */
 export function GameView({ fen, myColor, history, myTurn, outcome, names, banner, submitting = false, error, onSubmit, onResign, outcomeAction, table, onOpenFairness }: GameViewProps) {
   const { width } = useWindowDimensions();
-  const size = Math.min(width - 32, 480);
+  const size = Math.min(width - 32, MAX_CONTENT_WIDTH - 32);
   const cell = size / 8;
 
   const { current: revealing, done, settledOutcome, lastShown } = useTurnPresenter(history, outcome);
@@ -367,7 +367,8 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 10, alignItems: 'stretch' },
+  // Centred and capped so the board doesn't hug the left edge of a wide browser window.
+  container: { padding: 16, gap: 10, alignItems: 'stretch', width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center' },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, minHeight: 26 },
   status: { color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   outcome: { fontSize: 20, color: colors.slotA },

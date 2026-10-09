@@ -8,6 +8,10 @@
 | 03 | Odds Market | 00 | Yes | `feat/odds-market` |
 | 04 | All-In Toss | 00 | Yes | `feat/all-in` |
 | 05 | Side Bets | 00 | Yes | `feat/side-bets` |
+| 10 | Platform foundation: accounts, ledger, buy-in tables ([notes](10-platform.md)) | 00–05 | No | `develop` |
+| 11 | Client UI kit, theme, Expo web | 10 | Yes | merged |
+| 12 | Lobby and Sportsbook | 10 | Yes | merged |
+| 13 | Originals: Coin Duel, Blitz Puzzle | 10 | Yes | merged |
 
 ## Git protocol for every feature agent
 1. Branch from up-to-date `origin/develop` inside your worktree: `git fetch origin && git switch -c feat/<id> origin/develop`.

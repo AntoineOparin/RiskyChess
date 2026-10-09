@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, MAX_CONTENT_WIDTH, radius } from '../../lib/theme';
 
 export interface SheetProps {
@@ -17,11 +18,12 @@ export interface SheetProps {
  * within the content width on wide screens.
  */
 export function Sheet({ visible, title, onClose, children, footer }: SheetProps) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
-        <View style={styles.sheet} accessibilityViewIsModal>
+        <View style={[styles.sheet, { paddingBottom: 16 + insets.bottom }]} accessibilityViewIsModal>
           <View style={styles.head}>
             <Text style={styles.title} accessibilityRole="header">
               {title ?? ''}

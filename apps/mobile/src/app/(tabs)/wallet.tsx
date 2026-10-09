@@ -63,8 +63,7 @@ export default function Wallet() {
   };
 
   return (
-    <Screen
-      scroll
+    <Screen scroll safe="top"
       contentStyle={styles.content}
     >
       <Text style={styles.title}>Wallet</Text>

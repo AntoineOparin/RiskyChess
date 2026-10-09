@@ -33,7 +33,7 @@ export default function Casino() {
   const mine = (snapshot?.tables ?? []).find((tb) => tb.host.userId === user?.id);
 
   return (
-    <Screen scroll>
+    <Screen scroll safe="top">
       <View style={styles.header}>
         <Text style={styles.wordmark}>RISKY CHESS</Text>
         <BalancePill cents={balance} onPress={() => router.push('/(tabs)/wallet')} />

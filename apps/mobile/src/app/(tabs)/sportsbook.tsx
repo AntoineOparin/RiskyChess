@@ -14,7 +14,7 @@ export default function Sportsbook() {
   const markets = snapshot?.markets ?? [];
 
   return (
-    <Screen scroll>
+    <Screen scroll safe="top">
       <View style={styles.header}>
         <Text style={styles.title}>Sportsbook</Text>
         <BalancePill cents={balance} onPress={() => router.push('/(tabs)/wallet')} />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { chipDelta, previewOdds } from '@risky-chess/engine';
 import { CLASSIC_RULES, type Color, type GameRules, type ModeState, type MoveInput, type Settlement, type TurnExtras, type TurnResult, type Wallet, type GameOutcome } from '@risky-chess/shared';
 import { useMoveSelection } from '../hooks/useMoveSelection';
@@ -76,6 +77,7 @@ const marker = (m: { from: Marker['from']; to: Marker['to'] } | null | undefined
  */
 export function GameView({ fen, myColor, history, myTurn, outcome, names, banner, submitting = false, error, onSubmit, onResign, outcomeAction, table, onOpenFairness }: GameViewProps) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const size = Math.min(width - 32, MAX_CONTENT_WIDTH - 32);
   const cell = size / 8;
 
@@ -216,7 +218,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
   const confirmResign = () => setResignOpen(true);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 16 + insets.bottom }]}>
       <PlayerBar
         name={names.opponent}
         captured={material[oppColor].captured}

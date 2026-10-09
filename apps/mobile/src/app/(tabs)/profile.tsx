@@ -26,7 +26,7 @@ export default function Profile() {
 
   const net = (stats?.tableNetCents ?? 0) + (stats?.betNetCents ?? 0);
   return (
-    <Screen scroll>
+    <Screen scroll safe="top">
       <Text style={styles.title}>{user?.username ?? 'Player'}</Text>
       <Card>
         <View style={styles.statsRow}>

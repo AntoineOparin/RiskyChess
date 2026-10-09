@@ -31,7 +31,7 @@ export default function Onboarding() {
   };
 
   return (
-    <Screen scroll>
+    <Screen scroll safe="both">
       <View style={styles.hero}>
         <Text style={styles.wordmark}>RISKY CHESS</Text>
         <Text style={styles.tagline}>Pick two moves. Flip a coin. Bet on it.</Text>

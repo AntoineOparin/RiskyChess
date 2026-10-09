@@ -61,6 +61,7 @@ pnpm install
 
 pnpm dev:server    # http://localhost:3001
 pnpm dev:mobile    # Expo dev server; open in Expo Go or a simulator
+pnpm --filter @risky-chess/mobile exec expo start --web   # same app in the browser
 ```
 
 ### Scripts

@@ -21,3 +21,15 @@ export const colors = {
 export const CHIP = '◎';
 
 export const slotColor = (slot: 'A' | 'B') => (slot === 'A' ? colors.slotA : colors.slotB);
+
+/** Money and status accents: green for gains, gold for balances, blue for info, red for losses. */
+export const accent = { green: '#2ED573', gold: colors.chip, blue: colors.slotB, red: colors.danger } as const;
+
+export const radius = { sm: 10, md: 12, lg: 18, pill: 999 } as const;
+
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
+
+/** Pages never grow wider than this, so the web layout reads like the phone one. */
+export const MAX_CONTENT_WIDTH = 520;
+
+export const type = { h1: 26, h2: 20, h3: 16, body: 15, small: 13, tiny: 11 } as const;

@@ -2,6 +2,26 @@
 
 Chess where the side to move submits **two** legal moves and a fair coin decides which one is played. Play offline against the bot, or online against a friend through a small game server. Runs on iOS, Android and the web.
 
+## Gameplay
+
+<p align="center">
+  <img src="docs/media/gameplay.gif" width="300" alt="Two turns of Risky Chess: pick two moves, the coin spins over the board and the winning move slides into place">
+  &nbsp;&nbsp;
+  <img src="docs/media/all-in.gif" width="300" alt="An All-In declaration: one capture on one coin, lost, and the bishop is removed from the board">
+</p>
+
+<p align="center"><em>Left: two classic turns — pick a pair, toss, live with it. Right: an All-In on Bxb4 that busts, so the bishop comes off.</em></p>
+
+### Screens
+
+| Home | New game | Offline vs bot |
+|---|---|---|
+| ![Home screen](docs/media/home.jpg) | ![Table picker: Classic or All-In](docs/media/new-game.jpg) | ![Offline game against the bot](docs/media/offline-board.jpg) |
+
+| Declaring an All-In | After a bust | Inviting a friend |
+|---|---|---|
+| ![All-In toggle on a capture](docs/media/all-in-declare.jpg) | ![The capturing piece is gone and the turn passes](docs/media/all-in-bust.jpg) | ![Six-letter invite code for an online game](docs/media/invite-code.jpg) |
+
 ## Tech stack
 
 - **Monorepo:** pnpm workspaces, TypeScript

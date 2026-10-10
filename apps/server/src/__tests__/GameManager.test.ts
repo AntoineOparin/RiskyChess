@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { caller } from './helpers';
-import type { Color, MoveInput, MoveSubmission, ServerToClientEvents } from '@risky-chess/shared';
+import type { MoveInput, MoveSubmission, ServerToClientEvents } from '@risky-chess/shared';
 import { seededRng } from '@risky-chess/engine';
-import { GameManager, type Emit, type EmitTo, type GameManagerOptions } from '../game/GameManager';
+import { GameManager, type Emit, type GameManagerOptions } from '../game/GameManager';
 import { InMemoryGameStore } from '../game/GameStore';
 
-/** `to` is set for events sent to one seat's private channel. */
-type Event = { gameId: string; event: keyof ServerToClientEvents; payload: unknown; to?: Color };
+type Event = { gameId: string; event: keyof ServerToClientEvents; payload: unknown };
 
 const m = (lan: string): MoveInput => ({ from: lan.slice(0, 2), to: lan.slice(2, 4) }) as MoveInput;
 const flush = () => Promise.resolve();
@@ -15,7 +13,6 @@ let subCounter = 0;
 function setup(opts: Partial<GameManagerOptions> = {}) {
   const events: Event[] = [];
   const emit: Emit = (gameId, event, ...args) => events.push({ gameId, event, payload: args[0] });
-  const emitTo: EmitTo = (gameId, to, event, ...args) => events.push({ gameId, event, payload: args[0], to });
   const store = new InMemoryGameStore();
   const manager = new GameManager(
     store,
@@ -26,7 +23,6 @@ function setup(opts: Partial<GameManagerOptions> = {}) {
       botThinkMs: { min: 10, max: 10 },
       ...opts,
     },
-    emitTo,
   );
   const of = (name: keyof ServerToClientEvents) => events.filter((e) => e.event === name);
   const state = (id: string) => {
@@ -45,9 +41,9 @@ function setup(opts: Partial<GameManagerOptions> = {}) {
 }
 
 async function startPvp(t: ReturnType<typeof setup>) {
-  const w = t.manager.create({ mode: 'pvp', displayName: 'Ann', color: 'w' }, caller('conn-w'));
+  const w = t.manager.create({ mode: 'pvp', displayName: 'Ann', color: 'w' }, 'conn-w');
   if (!w.ok) throw new Error('create failed');
-  const b = t.manager.join({ gameId: w.data.gameId, displayName: 'Bo' }, caller('conn-b'));
+  const b = t.manager.join({ gameId: w.data.gameId, displayName: 'Bo' }, 'conn-b');
   if (!b.ok) throw new Error('join failed');
   await flush();
   return { id: w.data.gameId, w: w.data, b: b.data };
@@ -62,15 +58,15 @@ describe('lobby', () => {
     const g = await startPvp(t);
     expect(g.b.color).toBe('b');
     expect(t.state(g.id).status).toBe('awaiting_submission');
-    expect(t.of('game_started').map((e) => e.to)).toEqual(['w', 'b']);
+    expect(t.of('game_started')).toHaveLength(1);
     expect(t.of('turn_started')[0]?.payload).toMatchObject({ turnNumber: 1, turn: 'w' });
   });
 
   it('rejects a third player and unknown codes', async () => {
     const t = setup();
     const g = await startPvp(t);
-    expect(t.manager.join({ gameId: g.id, displayName: 'Cy' }, caller('c3'))).toMatchObject({ ok: false, error: 'GAME_FULL' });
-    expect(t.manager.join({ gameId: 'NOPE', displayName: 'Cy' }, caller('c3'))).toMatchObject({ ok: false, error: 'GAME_NOT_FOUND' });
+    expect(t.manager.join({ gameId: g.id, displayName: 'Cy' }, 'c3')).toMatchObject({ ok: false, error: 'GAME_FULL' });
+    expect(t.manager.join({ gameId: 'NOPE', displayName: 'Cy' }, 'c3')).toMatchObject({ ok: false, error: 'GAME_NOT_FOUND' });
   });
 });
 
@@ -134,7 +130,7 @@ describe('disconnections', () => {
     expect(t.of('opponent_disconnected')[0]?.payload).toMatchObject({ color: 'w' });
 
     vi.advanceTimersByTime(30_000);
-    expect(t.manager.rejoin({ gameId: g.id }, caller('conn-w2')).ok).toBe(true);
+    expect(t.manager.rejoin({ gameId: g.id, playerToken: g.w.playerToken }, 'conn-w2').ok).toBe(true);
     expect(t.state(g.id).status).toBe('awaiting_submission');
     expect(t.of('opponent_reconnected')).toHaveLength(1);
 
@@ -176,7 +172,7 @@ describe('disconnections', () => {
   it('ignores a stale socket disconnecting after the player rebound', async () => {
     const t = setup();
     const g = await startPvp(t);
-    t.manager.rejoin({ gameId: g.id }, caller('conn-w2'));
+    t.manager.rejoin({ gameId: g.id, playerToken: g.w.playerToken }, 'conn-w2');
     t.manager.disconnect(g.id, 'w', 'conn-w');
     expect(t.state(g.id).players.w?.connected).toBe(true);
     expect(t.of('opponent_disconnected')).toHaveLength(0);
@@ -185,14 +181,14 @@ describe('disconnections', () => {
   it('rejects rejoin with a bad token', async () => {
     const t = setup();
     const g = await startPvp(t);
-    expect(t.manager.rejoin({ gameId: g.id }, caller('x'))).toMatchObject({ error: 'UNAUTHORIZED' });
+    expect(t.manager.rejoin({ gameId: g.id, playerToken: 'nope' }, 'x')).toMatchObject({ error: 'UNAUTHORIZED' });
   });
 });
 
 describe('bot games', () => {
   it('responds to the human after thinking', async () => {
     const t = setup();
-    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'w' }, caller('conn'));
+    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'w' }, 'conn');
     if (!res.ok) throw new Error();
     await flush();
     t.manager.submit('w', t.sub(res.data.gameId, 1, 'e2e4', 'd2d4'));
@@ -203,7 +199,7 @@ describe('bot games', () => {
 
   it('moves first when playing white', async () => {
     const t = setup();
-    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'b' }, caller('conn'));
+    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'b' }, 'conn');
     if (!res.ok) throw new Error();
     await flush();
     vi.advanceTimersByTime(10);
@@ -212,7 +208,7 @@ describe('bot games', () => {
 
   it('never forfeits on disconnect', async () => {
     const t = setup();
-    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'w' }, caller('conn'));
+    const res = t.manager.create({ mode: 'bot', displayName: 'Ann', color: 'w' }, 'conn');
     if (!res.ok) throw new Error();
     await flush();
     t.manager.disconnect(res.data.gameId, 'w', 'conn');

@@ -10,7 +10,6 @@ import {
   resolveTurn,
   seededRng,
   sideToMove,
-  startingWallet,
   type Rng,
 } from '../..';
 
@@ -30,7 +29,6 @@ function go(fen: string, lan: string, rng: Rng, opts: { modeState?: ModeState; r
       moveA: m(lan),
       moveB: opts.moveB ? m(opts.moveB) : null,
       rules,
-      wallet: startingWallet(rules)!,
       modeState: opts.modeState ?? {},
       extras: { allIn: true, ...opts.extras },
       ...(opts.history ? { history: opts.history } : {}),
@@ -49,15 +47,10 @@ const EXD5 = 'rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2';
 const EXD4 = 'rnbqkbnr/pppp1ppp/8/4p3/3P4/8/PPP1PPPP/RNBQKBNR b KQkq d3 0 2';
 
 describe('the coin', () => {
-  it('is a fair 50/50 untouched by the market or stakes', () => {
-    const r = ok(go(EXD5, 'e4d5', WIN, { rules: { modes: ['all_in', 'odds_market', 'loaded_dice'] } }));
+  it('is a fair 50/50', () => {
+    const r = ok(go(EXD5, 'e4d5', WIN));
     expect(r.odds).toEqual({ A: 5000 });
     expect(r.coin?.chosen).toBe('A');
-    expect(r.effects.some((e) => e.kind === 'odds_breakdown')).toBe(false);
-  });
-
-  it('rejects a stake on an All-In', () => {
-    expect(go(EXD5, 'e4d5', WIN, { rules: { modes: ['all_in', 'loaded_dice'] }, extras: { stake: 4, favor: 'A' } })).toMatchObject({ ok: false, error: 'INVALID_STAKE' });
   });
 });
 
@@ -67,10 +60,7 @@ describe('win', () => {
     expect(r.fenAfter).toBe('rnbqkbnr/ppp1pppp/8/3P4/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2');
     expect(sideToMove(r.fenAfter)).toBe('w');
     expect(r.executed.san).toBe('exd5');
-    expect(r.effects).toEqual([
-      { kind: 'chips', color: 'w', delta: 1, reason: 'capture' },
-      { kind: 'all_in', color: 'w', won: true, piece: 'p', square: 'e4', bonusPly: true },
-    ]);
+    expect(r.effects).toEqual([{ kind: 'all_in', color: 'w', won: true, piece: 'p', square: 'e4', bonusPly: true }]);
   });
 
   it('keeps the move numbers right when Black takes a bonus ply', () => {
@@ -78,7 +68,7 @@ describe('win', () => {
     // Black moves again at move 2; the halfmove clock was reset by the capture.
     expect(r.fenAfter).toBe('rnbqkbnr/pppp1ppp/8/8/3p4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 2');
     const bonus = resolveTurn(
-      { gameId: 'g', turnNumber: 4, fen: r.fenAfter, previousFens: [EXD4], moveA: m('g8f6'), moveB: m('b8c6'), rules: RULES, wallet: r.walletAfter!, modeState: {} },
+      { gameId: 'g', turnNumber: 4, fen: r.fenAfter, previousFens: [EXD4], moveA: m('g8f6'), moveB: m('b8c6'), rules: RULES, modeState: {} },
       { rng: WIN, method: 'local' },
     );
     expect(bonus.ok && bonus.result.fenAfter).toBe('rnbqkb1r/pppp1ppp/5n2/8/3p4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 3');
@@ -103,7 +93,6 @@ describe('win', () => {
     const r = ok(go('1r6/P7/8/7k/8/8/8/4K3 w - - 0 1', 'a7b8q', WIN));
     expect(r.fenAfter).toBe('1Q6/8/8/7k/8/8/8/4K3 w - - 0 1');
     expect(r.executed).toMatchObject({ promotion: 'q', captured: 'r' });
-    expect(r.effects).toContainEqual({ kind: 'chips', color: 'w', delta: 5, reason: 'capture' });
   });
 
   it('handles en passant', () => {
@@ -121,7 +110,6 @@ describe('lose', () => {
     expect(r.fenAfter).toBe('rnbqkbnr/ppp1pppp/8/3p4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2');
     expect(r.executed.lan).toBe('e4d5');
     expect(r.effects).toEqual([{ kind: 'all_in', color: 'w', won: false, piece: 'p', square: 'e4', bonusPly: false }]);
-    expect(r.walletAfter).toEqual({ w: 100, b: 100 }); // no capture income on a bust
   });
 
   it('advances the move number after a Black bust', () => {
@@ -199,7 +187,7 @@ describe('bot', () => {
   it('goes All-In only on an even-or-better capture with an unused piece', () => {
     // Black's queen hangs to exd5: a pawn taking a queen is worth the risk.
     const fen = 'rnb1kbnr/pppp1ppp/8/3q4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3';
-    const state = (modeState: ModeState) => ({ rules: RULES, wallet: { w: 100, b: 100 }, modeState, history: [], fen, turnNumber: 3 });
+    const state = (modeState: ModeState) => ({ rules: RULES, modeState, history: [], fen, turnNumber: 3 });
     const always: Rng = { int: () => 0 };
     expect(pickBotSubmission(fen, state({}), always)).toMatchObject({ moveA: m('e4d5'), moveB: null, extras: { allIn: true } });
     expect(pickBotSubmission(fen, state({ allInsUsed: { w: ['p'], b: [] } }), always).extras).toBeUndefined();
@@ -213,13 +201,12 @@ describe('bot', () => {
     let busts = 0;
     for (let game = 0; game < 6; game++) {
       let fen = START_FEN;
-      let wallet = startingWallet(RULES)!;
       let modeState: ModeState = {};
       const history: TurnResult[] = [];
       for (let ply = 1; ply <= 200; ply++) {
-        const pick = pickBotSubmission(fen, { rules: RULES, wallet, modeState, history, fen, turnNumber: ply }, rng);
+        const pick = pickBotSubmission(fen, { rules: RULES, modeState, history, fen, turnNumber: ply }, rng);
         const r = resolveTurn(
-          { gameId: 'g', turnNumber: ply, fen, previousFens: history.map((h) => h.fenBefore), ...pick, rules: RULES, wallet, modeState, history },
+          { gameId: 'g', turnNumber: ply, fen, previousFens: history.map((h) => h.fenBefore), ...pick, rules: RULES, modeState, history },
           { rng, method: 'local' },
         );
         if (!r.ok) throw new Error(`${r.error}: ${r.message}`);
@@ -233,7 +220,6 @@ describe('bot', () => {
         }
         history.push(res);
         fen = res.fenAfter;
-        wallet = res.walletAfter!;
         modeState = applyModeEffects(modeState, res.effects);
         if (res.outcome) break;
       }

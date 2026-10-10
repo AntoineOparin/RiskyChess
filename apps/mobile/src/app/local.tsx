@@ -30,11 +30,9 @@ export default function LocalGame() {
         table={{
           gameId: 'local',
           rules,
-          wallet: game.wallet,
           modeState: game.modeState,
           turnNumber: game.history.length + 1,
           online: false,
-          placeBet: game.placeBet,
         }}
       />
     </View>

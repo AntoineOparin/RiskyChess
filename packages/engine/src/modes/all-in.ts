@@ -6,8 +6,7 @@ import type { ModeModule, ValidationFailure } from './types';
 
 /*
  * All-In: instead of a pair, the mover declares one capture double-or-nothing
- * on a fair 50/50 coin (slot A = win). The foundation keeps single-move
- * tosses at 5000, untouched by stakes or the market, and still provably fair.
+ * on a fair 50/50 coin (slot A = win), still provably fair online.
  *
  * Win: the capture plays and the mover gets a bonus ply (a normal pair turn),
  * unless the capture gives check, ends the game, or leaves the mover without

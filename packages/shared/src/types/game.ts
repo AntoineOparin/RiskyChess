@@ -1,7 +1,5 @@
 import type { Color, CoinToss, ResolvedMove } from './moves';
-import type { GameRules, ModeState, Odds, TurnEffect, Wallet } from './modes';
-import type { Visibility } from './lobby';
-import type { Settlement } from './wallet';
+import type { GameRules, ModeState, Odds, TurnEffect } from './modes';
 
 export type GameMode = 'pvp' | 'bot';
 
@@ -27,7 +25,7 @@ export interface TurnResult {
   mover: Color;
   fenBefore: string;
   moveA: ResolvedMove;
-  /** null on forced turns. */
+  /** null on forced turns and All-In declarations. */
   moveB: ResolvedMove | null;
   /** true → only one legal move existed, no toss happened. */
   forced: boolean;
@@ -45,17 +43,13 @@ export interface TurnResult {
   /** Evaluated after the executed move is applied. */
   status: GameStatus;
   outcome?: GameOutcome;
-  /** Chips, odds breakdowns, All-In results and bet settlements, in the order they happened. */
+  /** All-In results, in the order they happened. */
   effects: TurnEffect[];
-  /** Both wallets after this turn's effects; only when a chip mode is on. */
-  walletAfter?: Wallet;
   resolvedAt: number;
 }
 
 export interface PlayerSlot {
   playerId: string;
-  /** The account in this seat; absent for the bot. */
-  userId?: string;
   displayName: string;
   isBot: boolean;
   connected: boolean;
@@ -83,18 +77,6 @@ export interface GameSession {
   history: TurnResult[];
   outcome?: GameOutcome;
   rules: GameRules;
-  /** Cents each seat paid to sit down; 0 on a free table and in every bot game. */
-  buyInCents: number;
-  /** buyInCents / 100: what one table chip is worth. */
-  chipValueCents: number;
-  /** Public tables are listed in the lobby and priced for spectators. */
-  visibility: Visibility;
-  /** The seat that created the table. */
-  host: Color;
-  /** How the pot was paid out, once the game is over (paid tables only). */
-  settlement?: Settlement;
-  /** Present when any chip mode is on. */
-  wallet?: Wallet;
   modeState: ModeState;
   /** Provably Fair: sha256 of the current turn's server seed, for rejoining clients. */
   pendingCommitment?: string;

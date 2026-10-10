@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { logger } from '../lib/log';
 import { applyModeEffects, sideToMove } from '@risky-chess/engine';
-import type { Color, GameOutcome, GameSession, PropBet, Settlement, TurnEffect, TurnResult, TurnStartedPayload, Wallet } from '@risky-chess/shared';
+import type { Color, GameOutcome, GameSession, TurnResult, TurnStartedPayload } from '@risky-chess/shared';
 
 interface OnlineGameState {
   session: GameSession | null;
@@ -16,10 +16,8 @@ interface OnlineGameState {
   setSession(session: GameSession, color?: Color): void;
   applyTurnResult(r: TurnResult): 'applied' | 'duplicate' | 'gap';
   applyTurnStarted(p: TurnStartedPayload): void;
-  applyGameOver(outcome: GameOutcome, settle?: { effects?: TurnEffect[]; walletAfter?: Wallet; settlement?: Settlement }): void;
+  applyGameOver(outcome: GameOutcome): void;
   setOpponentPresence(color: Color, graceEndsAt: number | null): void;
-  /** Game over: every bet, unsealed. */
-  applyBetsRevealed(bets: Partial<Record<Color, PropBet[]>>): void;
   set(partial: Partial<Pick<OnlineGameState, 'connected' | 'submitting' | 'error'>>): void;
 }
 
@@ -58,7 +56,6 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
         // Derived from the position, never flipped: an All-In bonus ply keeps the same side to move.
         turn: sideToMove(r.fenAfter),
         turnNumber: s.turnNumber + 1,
-        ...(r.walletAfter ? { wallet: r.walletAfter } : {}),
         modeState: applyModeEffects(s.modeState, r.effects ?? []),
         history: [...s.history, r],
         status: r.status,
@@ -74,21 +71,10 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
     if (s && p.turnNumber === s.turnNumber) set({ session: { ...s, status: p.status } });
   },
 
-  applyGameOver: (outcome, settle) => {
+  applyGameOver: (outcome) => {
     const s = get().session;
     if (!s) return;
-    set({
-      session: {
-        ...s,
-        status: 'finished',
-        outcome,
-        ...(settle?.walletAfter ? { wallet: settle.walletAfter } : {}),
-        ...(settle?.settlement ? { settlement: settle.settlement } : {}),
-        modeState: applyModeEffects(s.modeState, settle?.effects ?? []),
-      },
-      opponentGraceEndsAt: null,
-      submitting: false,
-    });
+    set({ session: { ...s, status: 'finished', outcome }, opponentGraceEndsAt: null, submitting: false });
   },
 
   setOpponentPresence: (color, graceEndsAt) => {
@@ -103,11 +89,6 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
         status: graceEndsAt === null && s.status === 'paused_disconnect' ? 'awaiting_submission' : s.status,
       },
     });
-  },
-
-  applyBetsRevealed: (bets) => {
-    const s = get().session;
-    if (s) set({ session: { ...s, modeState: { ...s.modeState, bets: { ...s.modeState.bets, ...bets } } } });
   },
 
   set: (partial) => set(partial),

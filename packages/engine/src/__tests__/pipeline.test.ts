@@ -1,20 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { START_FEN, type GameRules, type MoveInput, type TurnResult } from '@risky-chess/shared';
-import {
-  applyEffects,
-  applyModeEffects,
-  clampOdds,
-  MODE_REGISTRY,
-  pickBotPair,
-  pickBotSubmission,
-  previewOdds,
-  resolveTurn,
-  seededRng,
-  sideToMove,
-  startingWallet,
-  type ModeModule,
-  type Rng,
-} from '..';
+import { ALL_IN_RULES, START_FEN, type GameRules, type MoveInput, type TurnResult } from '@risky-chess/shared';
+import { applyModeEffects, clampOdds, MODE_REGISTRY, pickBotPair, pickBotSubmission, previewOdds, resolveTurn, seededRng, sideToMove, type ModeModule, type Rng } from '..';
 
 const m = (lan: string): MoveInput => ({
   from: lan.slice(0, 2) as MoveInput['from'],
@@ -23,22 +9,16 @@ const m = (lan: string): MoveInput => ({
 });
 const base = { gameId: 'g1', turnNumber: 1, previousFens: [] as string[] };
 const fixed = (n: number): Rng => ({ int: () => n });
-const ALL: GameRules = { modes: ['loaded_dice', 'odds_market', 'all_in', 'side_bets'] };
 
 /** Plays a scripted game (Move A always) and returns every result. */
 function play(pairs: [string, string][], deps: Parameters<typeof resolveTurn>[1], rules?: GameRules) {
   const out: TurnResult[] = [];
   let fen = START_FEN;
-  let wallet = rules ? startingWallet(rules) : undefined;
   for (const [i, [a, b]] of pairs.entries()) {
-    const r = resolveTurn(
-      { ...base, turnNumber: i + 1, fen, previousFens: out.map((h) => h.fenBefore), moveA: m(a), moveB: m(b), ...(rules ? { rules } : {}), ...(wallet ? { wallet } : {}) },
-      deps,
-    );
+    const r = resolveTurn({ ...base, turnNumber: i + 1, fen, previousFens: out.map((h) => h.fenBefore), moveA: m(a), moveB: m(b), ...(rules ? { rules } : {}) }, deps);
     if (!r.ok) throw new Error(r.message);
     out.push(r.result);
     fen = r.result.fenAfter;
-    wallet = r.result.walletAfter;
   }
   return out;
 }
@@ -60,8 +40,13 @@ describe('classic parity', () => {
     for (const r of forced) {
       expect(r.odds).toEqual({ A: 5000 });
       expect(r.effects).toEqual([]);
-      expect(r.walletAfter).toBeUndefined();
     }
+  });
+
+  it('plays the same with All-In on when nobody declares', () => {
+    const classic = play(SCRIPT, { forceSlot: 'A', method: 'local' });
+    const allIn = play(SCRIPT, { forceSlot: 'A', method: 'local' }, ALL_IN_RULES);
+    expect(allIn.map((r) => r.fenAfter)).toEqual(classic.map((r) => r.fenAfter));
   });
 
   it('rolls A below the odds and B at or above them', () => {
@@ -99,42 +84,13 @@ describe('classic parity', () => {
 describe('mode gating', () => {
   it('rejects extras for modes that are off', () => {
     const go = (extras: object) => resolveTurn({ ...base, fen: START_FEN, moveA: m('e2e4'), moveB: m('d2d4'), extras }, { forceSlot: 'A' });
-    expect(go({ stake: 4, favor: 'A' })).toMatchObject({ ok: false, error: 'MODE_DISABLED' });
     expect(go({ allIn: true })).toMatchObject({ ok: false, error: 'MODE_DISABLED' });
     expect(go({ clientSeed: 'abcdef0123' })).toMatchObject({ ok: true });
   });
 
-  it('needs a wallet when a chip mode is on', () => {
-    expect(() => resolveTurn({ ...base, fen: START_FEN, moveA: m('e2e4'), moveB: m('d2d4'), rules: ALL }, { forceSlot: 'A' })).toThrow();
-  });
-});
-
-describe('economy', () => {
-  it('starts both seats with 100 chips only when a chip mode is on', () => {
-    expect(startingWallet({ modes: [] })).toBeUndefined();
-    expect(startingWallet({ modes: ['side_bets'] })).toEqual({ w: 100, b: 100 });
-  });
-
-  it('pays capture income equal to the captured piece value', () => {
-    const results = play(SCRIPT, { forceSlot: 'A' }, { modes: ['loaded_dice'] });
-    // exd5 takes a pawn (+1 w), Qxd5 takes a pawn (+1 b).
-    expect(results[2]?.effects).toEqual([{ kind: 'chips', color: 'w', delta: 1, reason: 'capture' }]);
-    expect(results[3]?.walletAfter).toEqual({ w: 101, b: 101 });
-  });
-
-  it('never lets a wallet go negative', () => {
-    expect(() => applyEffects({ w: 3, b: 0 }, [{ kind: 'chips', color: 'w', delta: -4, reason: 'stake' }])).toThrow();
-    expect(applyEffects({ w: 3, b: 0 }, [{ kind: 'chips', color: 'w', delta: -3, reason: 'stake' }])).toEqual({ w: 0, b: 0 });
-  });
-
   it('derives mode state from effects', () => {
-    const bet = { id: 'x', kind: 'opp_promotes' as const, params: {}, stake: 5, payoutX100: 300, placedAtTurn: 1, status: 'open' as const };
-    const s = applyModeEffects({ bets: { w: [bet] } }, [
-      { kind: 'all_in', color: 'b', won: false, piece: 'n', square: 'c6', bonusPly: false },
-      { kind: 'bet_settled', color: 'w', betId: 'x', result: 'won', payout: 15 },
-    ]);
+    const s = applyModeEffects({}, [{ kind: 'all_in', color: 'b', won: false, piece: 'n', square: 'c6', bonusPly: false }]);
     expect(s.allInsUsed).toEqual({ w: [], b: ['n'] });
-    expect(s.bets?.w).toEqual([{ ...bet, status: 'won' }]);
   });
 });
 
@@ -148,42 +104,21 @@ describe('odds pipeline', () => {
     expect(clampOdds({ A: 6200 })).toEqual({ A: 6200 });
   });
 
-  it('composes the market before stakes, clamps, and records the breakdown', () => {
-    const seen: string[] = [];
-    MODE_REGISTRY.odds_market = { id: 'odds_market', adjustOdds: (_c, o) => (seen.push(`market@${o.A}`), { A: o.A - 1500 }) } satisfies ModeModule;
-    MODE_REGISTRY.loaded_dice = { id: 'loaded_dice', adjustOdds: (_c, o) => (seen.push(`dice@${o.A}`), { A: o.A - 3000 }) } satisfies ModeModule;
-    const input = { ...base, fen: START_FEN, moveA: m('e2e4'), moveB: m('d2d4'), rules: ALL, wallet: { w: 100, b: 100 } };
-
-    expect(previewOdds(input)).toMatchObject({ ok: true, odds: { A: 1000 } });
-    expect(seen).toEqual(['market@5000', 'dice@3500']);
-
-    const r = resolveTurn(input, { rng: fixed(999), method: 'local' });
-    expect(r.ok && r.result.odds).toEqual({ A: 1000 });
-    expect(r.ok && r.result.coin?.chosen).toBe('A');
-    expect(r.ok && r.result.effects[0]).toEqual({
-      kind: 'odds_breakdown',
-      steps: [
-        { source: 'base', A: 5000 },
-        { source: 'odds_market', A: 3500 },
-        { source: 'loaded_dice', A: 500 },
-      ],
-    });
+  it('previews a fair line for every pair', () => {
+    expect(previewOdds({ ...base, fen: START_FEN, moveA: m('e2e4'), moveB: m('d2d4'), rules: ALL_IN_RULES })).toMatchObject({ ok: true, odds: { A: 5000 }, steps: [] });
   });
 
   it('keeps forced turns fair and untossed', () => {
-    MODE_REGISTRY.loaded_dice = { id: 'loaded_dice', adjustOdds: () => ({ A: 9000 }) } satisfies ModeModule;
-    const r = resolveTurn(
-      { ...base, fen: 'k7/8/8/8/8/8/1q6/K7 w - - 0 1', moveA: m('a1b2'), moveB: null, rules: ALL, wallet: { w: 100, b: 100 } },
-      { rng: fixed(0), method: 'local' },
-    );
+    MODE_REGISTRY.all_in = { id: 'all_in', adjustOdds: () => ({ A: 9000 }) } satisfies ModeModule;
+    const r = resolveTurn({ ...base, fen: 'k7/8/8/8/8/8/1q6/K7 w - - 0 1', moveA: m('a1b2'), moveB: null, rules: ALL_IN_RULES }, { rng: fixed(0), method: 'local' });
     expect(r.ok && r.result).toMatchObject({ forced: true, coin: null, odds: { A: 5000 } });
   });
 });
 
 describe('bot submissions', () => {
-  it('match the classic pair when every mode is a stub', () => {
+  it('match the classic pair when the mode adds nothing', () => {
     const fen = START_FEN;
-    const state = { rules: ALL, wallet: { w: 100, b: 100 }, modeState: {}, history: [], fen, turnNumber: 1 };
+    const state = { rules: ALL_IN_RULES, modeState: {}, history: [], fen, turnNumber: 1 };
     expect(pickBotSubmission(fen, state, seededRng(9))).toEqual(pickBotPair(fen, seededRng(9)));
   });
 });

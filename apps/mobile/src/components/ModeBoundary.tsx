@@ -26,7 +26,6 @@ export const ctxSummary = (ctx: TableCtx) => ({
   odds: ctx.odds,
   canAct: ctx.canAct,
   online: ctx.online,
-  wallet: ctx.wallet,
 });
 
 /**

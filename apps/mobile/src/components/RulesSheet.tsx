@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { isClassic, type GameRules } from '@risky-chess/shared';
 import { activeUi } from '../modes/registry';
-import { CHIP, colors } from '../lib/theme';
+import { colors } from '../lib/theme';
 import { Button, Sheet } from './ui';
 
 const CLASSIC_BULLETS = [
@@ -28,11 +28,6 @@ export function RulesSheet({ visible, rules, onClose, closeLabel = 'Got it' }: P
         {modes.map(([id, ui]) => (
           <Section key={id} title={ui.title} pitch={ui.pitch} bullets={ui.bullets} />
         ))}
-        {!isClassic(rules) && (
-          <Text style={styles.note}>
-            Both players start with 100 {CHIP}. Captures earn the captured piece’s value. Chips are play money.
-          </Text>
-        )}
       </View>
     </Sheet>
   );
@@ -58,5 +53,4 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.slotA, fontWeight: '800', fontSize: 15 },
   pitch: { color: colors.text, fontWeight: '600' },
   bullet: { color: colors.textMuted, lineHeight: 20 },
-  note: { color: colors.textMuted, fontSize: 12 },
 });

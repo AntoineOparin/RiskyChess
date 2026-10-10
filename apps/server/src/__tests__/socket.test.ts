@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Socket } from 'socket.io-client';
 import type { Ack, ClientToServerEvents, GameOutcome, MoveInput, ServerToClientEvents, TurnResult } from '@risky-chess/shared';
 import { createApp, type App } from '../app';
-import { connectAs } from './helpers';
+import { connectTo } from './helpers';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -24,8 +24,8 @@ afterEach(async () => {
   await app.close();
 });
 
-async function client(name: string): Promise<Client> {
-  const c = (await connectAs(app, url, name)) as Client;
+async function client(): Promise<Client> {
+  const c = await connectTo(url);
   clients.push(c);
   return c;
 }
@@ -38,7 +38,7 @@ const next = <E extends keyof ServerToClientEvents>(c: Client, e: E) =>
 
 describe('socket integration', () => {
   it('plays a full pvp game to checkmate', async () => {
-    const [a, b] = [await client('alice'), await client('bob')];
+    const [a, b] = [await client(), await client()];
     const created = await call<{ gameId: string }>((ack) => a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w' }, ack as never));
     if (!created.ok) throw new Error(created.message);
     const gameId = created.data.gameId;
@@ -68,7 +68,7 @@ describe('socket integration', () => {
   });
 
   it('rejects malformed payloads and unseated sockets', async () => {
-    const a = await client('alice');
+    const a = await client();
     const bad = await call((ack) => a.emit('create_game', { mode: 'chaos' } as never, ack as never));
     expect(bad).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
     const unseated = await call((ack) =>
@@ -77,21 +77,21 @@ describe('socket integration', () => {
     expect(unseated).toMatchObject({ ok: false, error: 'UNAUTHORIZED' });
   });
 
-  it('lets a dropped player rejoin by account and keep playing', async () => {
-    const [a, b] = [await client('alice'), await client('bob')];
-    const created = await call<{ gameId: string }>((ack) => a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w' }, ack as never));
+  it('lets a dropped player rejoin by token and keep playing', async () => {
+    const [a, b] = [await client(), await client()];
+    const created = await call<{ gameId: string; playerToken: string }>((ack) => a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w' }, ack as never));
     if (!created.ok) throw new Error();
-    const { gameId } = created.data;
+    const { gameId, playerToken } = created.data;
     await call((ack) => b.emit('join_game', { gameId, displayName: 'Bo' }, ack as never));
 
     const dropped = next(b, 'opponent_disconnected');
     a.disconnect();
     expect(await dropped).toMatchObject({ color: 'w' });
 
-    const a2 = await connectAs(app, url, { token: (a as Client & { token: string }).token });
+    const a2 = await client();
     clients.push(a2);
     const back = next(b, 'opponent_reconnected');
-    const rejoined = await call<{ session: { status: string } }>((ack) => a2.emit('rejoin_game', { gameId }, ack as never));
+    const rejoined = await call<{ session: { status: string } }>((ack) => a2.emit('rejoin_game', { gameId, playerToken }, ack as never));
     expect(rejoined.ok && rejoined.data.session.status).toBe('awaiting_submission');
     await back;
 
@@ -101,22 +101,15 @@ describe('socket integration', () => {
     expect(ack.ok).toBe(true);
   });
 
-  it('creates a High Roller game, delivers each seat its own start, and gates bets', async () => {
-    const [a, b] = [await client('alice'), await client('bob')];
-    const rules = { modes: ['loaded_dice', 'odds_market', 'all_in', 'side_bets'] as const };
-    const created = await call<{ gameId: string }>((ack) =>
-      a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w', rules: { modes: [...rules.modes] } }, ack as never),
-    );
+  it('creates an All-In game, delivers both seats the start, and validates rules', async () => {
+    const [a, b] = [await client(), await client()];
+    const created = await call<{ gameId: string }>((ack) => a.emit('create_game', { mode: 'pvp', displayName: 'Ann', color: 'w', rules: { modes: ['all_in'] } }, ack as never));
     if (!created.ok) throw new Error(created.message);
     const gameId = created.data.gameId;
     const [sa, sb] = [next(a, 'game_started'), next(b, 'game_started')];
     await call((ack) => b.emit('join_game', { gameId, displayName: 'Bo' }, ack as never));
-    for (const s of await Promise.all([sa, sb])) expect(s).toMatchObject({ rules, wallet: { w: 100, b: 100 } });
+    for (const s of await Promise.all([sa, sb])) expect(s).toMatchObject({ rules: { modes: ['all_in'] } });
 
-    const bet = await call((ack) => a.emit('place_bet', { gameId, clientBetId: 'x1', kind: 'opp_promotes', stake: 5 }, ack as never));
-    expect(bet).toMatchObject({ ok: true, data: { bet: { kind: 'opp_promotes', stake: 5, status: 'open' } } });
-    const bad = await call((ack) => a.emit('place_bet', { gameId, clientBetId: 'x2', kind: 'opp_promotes', stake: 0 } as never, ack as never));
-    expect(bad).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
     const badRules = await call((ack) => a.emit('create_game', { mode: 'bot', displayName: 'A', rules: { modes: ['chaos'] } } as never, ack as never));
     expect(badRules).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
   });

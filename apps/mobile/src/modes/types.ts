@@ -1,20 +1,5 @@
 import type { ComponentType } from 'react';
-import type {
-  Color,
-  GameRules,
-  ModeState,
-  MoveSlot,
-  Odds,
-  PropBetKind,
-  ResolvedMove,
-  TurnEffect,
-  TurnExtras,
-  TurnResult,
-  Wallet,
-} from '@risky-chess/shared';
-
-export type BetRequest = { kind: PropBetKind; params?: Record<string, number>; stake: number };
-export type BetOutcome = { ok: true } | { ok: false; message: string };
+import type { Color, GameRules, ModeState, MoveSlot, Odds, ResolvedMove, TurnEffect, TurnExtras, TurnResult } from '@risky-chess/shared';
 
 /** Everything a mode's UI may read about the table, from the viewer's side. */
 export interface TableCtx {
@@ -22,9 +7,6 @@ export interface TableCtx {
   fen: string;
   myColor: Color;
   rules: GameRules;
-  /** As currently displayed (reveals not yet shown are not counted). */
-  wallet?: Wallet;
-  /** The viewer's view: the opponent's bets are sealed until game over. */
   modeState: ModeState;
   history: readonly TurnResult[];
   turnNumber: number;
@@ -39,7 +21,6 @@ export interface TableCtx {
   /** Online: true. Offline games still run every mode against the local engine. */
   online: boolean;
   finished: boolean;
-  placeBet?: (req: BetRequest) => Promise<BetOutcome>;
 }
 
 export type EffectTone = 'good' | 'bad' | 'neutral' | 'big_good' | 'big_bad';
@@ -58,15 +39,15 @@ export interface ModeUi {
   bullets: [string, string, string];
   /** Compact control (≤ 56 px) in the panel zone above the slot bar. */
   Panel?: ComponentType<{ ctx: TableCtx }>;
-  /** Extra text on a slot chip (odds, payout). */
+  /** Extra text on a slot chip. */
   SlotBadge?: ComponentType<{ ctx: TableCtx; slot: MoveSlot }>;
   /**
    * Toast text for an effect this mode owns; null to leave it to others.
-   * `turn` is the turn it came from, if any; `modeState` is the viewer's view after it.
+   * `turn` is the turn it came from, if any; `modeState` is the view after it.
    */
   describeEffect?: (effect: TurnEffect, myColor: Color, turn?: TurnResult, modeState?: ModeState) => EffectLine | null;
-  /** Small additions to a player's bar (e.g. sealed bets). */
+  /** Small additions to a player's bar. */
   PlayerAccessory?: ComponentType<{ ctx: TableCtx; color: Color }>;
-  /** A card on the game-over screen (e.g. the bet ledger). */
+  /** A card on the game-over screen. */
   GameOverCard?: ComponentType<{ ctx: TableCtx }>;
 }

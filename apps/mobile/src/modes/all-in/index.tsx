@@ -22,7 +22,7 @@ function Panel({ ctx }: { ctx: TableCtx }) {
   }, [on, eligible, setExtras]);
 
   if (!eligible || !a?.captured) return null;
-  const toggle = () => setExtras(on ? { allIn: undefined } : { allIn: true, stake: undefined, favor: undefined });
+  const toggle = () => setExtras(on ? { allIn: undefined } : { allIn: true });
   return (
     <View style={styles.row}>
       <Pressable

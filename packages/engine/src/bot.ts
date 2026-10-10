@@ -61,9 +61,8 @@ export interface BotSubmission extends BotPair {
 }
 
 /**
- * The bot's whole turn under the game's rules: its pair (which a mode may
- * re-pick), plus each active mode's extras. An All-In declaration drops
- * Move B and any stake.
+ * The bot's whole turn under the game's rules: its pair plus each active
+ * mode's extras. An All-In declaration drops Move B.
  */
 export function pickBotSubmission(fen: string, state: SessionLike, rng: Rng, difficulty: BotDifficulty = 'greedy'): BotSubmission {
   const ranked = rankBotMoves(fen, rng, difficulty);
@@ -71,13 +70,8 @@ export function pickBotSubmission(fen: string, state: SessionLike, rng: Rng, dif
   if (!pair.moveB) return pair;
 
   const modules = activeModules(state.rules);
-  for (const m of modules) pair = m.pairPolicy?.(fen, ranked, state, rng) ?? pair;
   const extras: TurnExtras = {};
   for (const m of modules) Object.assign(extras, m.botExtras?.(fen, pair, state, rng));
-  if (extras.allIn) {
-    delete extras.stake;
-    delete extras.favor;
-    pair = { moveA: pair.moveA, moveB: null };
-  }
+  if (extras.allIn) pair = { moveA: pair.moveA, moveB: null };
   return Object.keys(extras).length ? { ...pair, extras } : pair;
 }

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { chipDelta, previewOdds } from '@risky-chess/engine';
-import { CLASSIC_RULES, type Color, type GameRules, type ModeState, type MoveInput, type Settlement, type TurnExtras, type TurnResult, type Wallet, type GameOutcome } from '@risky-chess/shared';
+import { previewOdds } from '@risky-chess/engine';
+import { CLASSIC_RULES, type Color, type GameRules, type ModeState, type MoveInput, type TurnExtras, type TurnResult, type GameOutcome } from '@risky-chess/shared';
 import { useMoveSelection } from '../hooks/useMoveSelection';
 import { describeEffects } from '../lib/effects';
 import { logger } from '../lib/log';
 import { activeUi } from '../modes/registry';
-import type { BetOutcome, BetRequest, TableCtx } from '../modes/types';
+import type { TableCtx } from '../modes/types';
 import { cleanExtras, useModeExtras } from '../state/modeExtras';
 import { useTurnPresenter } from '../hooks/useTurnPresenter';
 import { describeOutcome, materialSummary, other } from '../lib/chess';
@@ -26,22 +26,15 @@ import { OddsBadge } from './OddsBadge';
 import { PlayerBar } from './PlayerBar';
 import { PromotionPicker } from './PromotionPicker';
 import { RulesSheet } from './RulesSheet';
-import { SettlementCard } from './SettlementCard';
 import { Button, Sheet } from './ui';
 
-/** The table's mode setup, from the viewer's side. Omitted for a classic game. */
+/** The table's mode setup, from the viewer's side. */
 export interface TableInfo {
   gameId: string;
   rules: GameRules;
-  wallet?: Wallet | undefined;
   modeState: ModeState;
   turnNumber: number;
   online: boolean;
-  placeBet?: (req: BetRequest) => Promise<BetOutcome>;
-  /** Paid table: what each table chip is worth. */
-  chipValueCents?: number | undefined;
-  /** How the pot was paid, once the game is over. */
-  settlement?: Settlement | undefined;
 }
 
 export interface GameViewProps {
@@ -96,14 +89,6 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
   const [rulesOpen, setRulesOpen] = useState(false);
   const [resignOpen, setResignOpen] = useState(false);
 
-  // Chips as of what has been revealed: turns still queued for a reveal are not counted yet.
-  const shownWallet = useMemo(() => {
-    const w = table?.wallet;
-    if (!w || !revealing) return w;
-    const d = chipDelta(history.slice(history.indexOf(revealing)).flatMap((r) => r.effects ?? []));
-    return { w: w.w - d.w, b: w.b - d.b };
-  }, [table?.wallet, revealing, history]);
-
   // The line the current pair would be tossed at: the same engine pipeline the server runs.
   const odds = useMemo(() => {
     if (!table || !canAct || !sel.slots.A || (!sel.slots.B && !extras.allIn)) return null;
@@ -115,7 +100,6 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
       moveA: sel.slots.A,
       moveB: extras.allIn ? null : sel.slots.B,
       rules: table.rules,
-      ...(table.wallet ? { wallet: table.wallet } : {}),
       modeState: table.modeState,
       extras,
       history,
@@ -129,7 +113,6 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
       fen: displayFen,
       myColor,
       rules,
-      ...(shownWallet ? { wallet: shownWallet } : {}),
       modeState: table?.modeState ?? {},
       history,
       turnNumber: table?.turnNumber ?? history.length + 1,
@@ -140,9 +123,8 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
       odds,
       online: table?.online ?? false,
       finished: !!settledOutcome,
-      ...(table?.placeBet ? { placeBet: table.placeBet } : {}),
     }),
-    [displayFen, myColor, rules, shownWallet, table, history, canAct, submitting, sel.slots, extras, setExtras, odds, settledOutcome],
+    [displayFen, myColor, rules, table, history, canAct, submitting, sel.slots, extras, setExtras, odds, settledOutcome],
   );
   const modes = activeUi(rules.modes);
   const badgeModes = modes.filter(([, ui]) => ui.SlotBadge);
@@ -224,8 +206,6 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
         captured={material[oppColor].captured}
         capturedColor={myColor}
         score={material[oppColor].score}
-        chips={shownWallet?.[oppColor]}
-        chipValueCents={table?.chipValueCents}
         accessory={accessory(oppColor)}
       />
       <View style={{ width: size, height: size }}>
@@ -262,8 +242,6 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
         captured={material[myColor].captured}
         capturedColor={oppColor}
         score={material[myColor].score}
-        chips={shownWallet?.[myColor]}
-        chipValueCents={table?.chipValueCents}
         accessory={accessory(myColor)}
       />
 
@@ -319,7 +297,6 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
           <FairBadge result={lastShown} onPress={onOpenFairness} />
         </View>
       )}
-      {settledOutcome && table?.settlement && <SettlementCard settlement={table.settlement} myColor={myColor} />}
       {settledOutcome &&
         modes
           .filter(([, ui]) => ui.GameOverCard)
@@ -362,7 +339,7 @@ export function GameView({ fen, myColor, history, myTurn, outcome, names, banner
           </View>
         }
       >
-        <Text style={styles.resignBody}>{table?.settlement === undefined && (table?.chipValueCents ?? 0) > 0 ? 'This ends the game as a loss: your opponent takes the pot.' : 'This ends the game as a loss.'}</Text>
+        <Text style={styles.resignBody}>This ends the game as a loss.</Text>
       </Sheet>
     </ScrollView>
   );

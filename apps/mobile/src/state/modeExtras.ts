@@ -22,8 +22,6 @@ export const useModeExtras = create<ModeExtrasState>()((set) => ({
 /** Drops empty fields so a classic submission carries no extras at all. */
 export function cleanExtras(e: TurnExtras): TurnExtras | undefined {
   const out: TurnExtras = {};
-  if (e.stake) out.stake = e.stake;
-  if (e.stake && e.favor) out.favor = e.favor;
   if (e.allIn) out.allIn = true;
   if (e.clientSeed) out.clientSeed = e.clientSeed;
   return Object.keys(out).length ? out : undefined;

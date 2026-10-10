@@ -74,8 +74,5 @@ Desktop.ini
 # Claude Code local settings
 .claude/settings.local.json
 
-# server database
-apps/server/data/
-
 # agent worktrees
 .claude/worktrees/

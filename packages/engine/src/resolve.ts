@@ -1,9 +1,7 @@
 import { Chess } from 'chess.js';
 import {
   CLASSIC_RULES,
-  ECONOMY,
   hasMode,
-  usesChips,
   type CoinToss,
   type GameRules,
   type ModeState,
@@ -12,10 +10,8 @@ import {
   type TurnEffect,
   type TurnExtras,
   type TurnResult,
-  type Wallet,
 } from '@risky-chess/shared';
-import { applyEffects, applyModeEffects } from './economy';
-import { activeModules, type Applied, type ModeModule, type ApplyResult, type SessionLike, type TossRoll, type TurnCtx, type ValidationFailure } from './modes';
+import { activeModules, type Applied, type ModeModule, type ApplyResult, type TossRoll, type TurnCtx, type ValidationFailure } from './modes';
 import { computeOdds, FAIR_ODDS, type OddsLine } from './odds';
 import type { Rng, Tosser } from './rng';
 import { deriveOutcome } from './status';
@@ -33,11 +29,9 @@ export interface ResolveInput {
   now?: number;
   /** Defaults to classic. */
   rules?: GameRules;
-  /** Required when a chip mode is on. */
-  wallet?: Wallet;
   modeState?: ModeState;
   extras?: TurnExtras;
-  /** Resolved turns so far; mode hooks (bet settlement) read it. */
+  /** Resolved turns so far, for mode hooks. */
   history?: readonly TurnResult[];
 }
 
@@ -61,9 +55,6 @@ export const sideToMove = (fen: string) => (fen.split(' ')[1] === 'b' ? ('b' as 
 
 /** Extras that need a mode which is off. */
 function disabledExtras(rules: GameRules, extras: TurnExtras): ValidationFailure | null {
-  if ((extras.stake || extras.favor) && !hasMode(rules, 'loaded_dice')) {
-    return { error: 'MODE_DISABLED', message: 'Loaded Dice is not on in this game' };
-  }
   if (extras.allIn && !hasMode(rules, 'all_in')) return { error: 'MODE_DISABLED', message: 'All-In is not on in this game' };
   return null;
 }
@@ -97,7 +88,6 @@ type Prepared = { ok: true; ctx: TurnCtx; modules: ModeModule[] } | ({ ok: false
 function prepareTurn(input: ResolveInput): Prepared {
   const rules = input.rules ?? CLASSIC_RULES;
   const extras = input.extras ?? {};
-  if (usesChips(rules) && !input.wallet) throw new Error('resolveTurn: a chip mode is on but no wallet was given');
 
   const disabled = disabledExtras(rules, extras);
   if (disabled) return { ok: false, ...disabled };
@@ -111,7 +101,6 @@ function prepareTurn(input: ResolveInput): Prepared {
     fen: input.fen,
     mover: sideToMove(input.fen),
     rules,
-    ...(input.wallet ? { wallet: input.wallet } : {}),
     modeState: input.modeState ?? {},
     extras,
     moveA: v.moveA,
@@ -139,9 +128,8 @@ export function previewOdds(input: ResolveInput): ({ ok: true } & OddsLine) | ({
 }
 
 /**
- * The turn pipeline: base validation → mode validation → odds (base → modules
- * → clamp) → roll → apply (module override or the default move) → effects
- * (capture income, then modules) → end conditions → after-turn hooks.
+ * The turn pipeline: base validation → mode validation → odds → roll →
+ * apply (module override or the default move) → effects → end conditions.
  * Pure apart from the coin source in `deps`.
  */
 export function resolveTurn(input: ResolveInput, depsOrTosser: ResolveDeps | Tosser): ResolveOutput {
@@ -149,12 +137,10 @@ export function resolveTurn(input: ResolveInput, depsOrTosser: ResolveDeps | Tos
   const prepared = prepareTurn(input);
   if (!prepared.ok) return prepared;
   const { ctx, modules } = prepared;
-  const { rules, mover, modeState, history } = ctx;
-  const chips = usesChips(rules);
+  const { mover } = ctx;
 
   const tossed = toss(ctx, deps);
   const odds = tossed?.roll.odds ?? FAIR_ODDS;
-  const breakdown = tossed?.steps ?? [];
 
   let applied: ApplyResult | null = null;
   for (const m of modules) {
@@ -173,10 +159,6 @@ export function resolveTurn(input: ResolveInput, depsOrTosser: ResolveDeps | Tos
   const full: Applied = { ...applied, roll: tossed?.roll ?? null };
 
   const effects: TurnEffect[] = [];
-  if (breakdown.length) effects.push({ kind: 'odds_breakdown', steps: breakdown });
-  if (chips && full.captured) {
-    effects.push({ kind: 'chips', color: mover, delta: ECONOMY.CAPTURE_INCOME[full.captured], reason: 'capture' });
-  }
   for (const m of modules) effects.push(...(m.effects?.(ctx, full) ?? []));
 
   const outcome = deriveOutcome(chess, [...input.previousFens, input.fen]);
@@ -198,36 +180,17 @@ export function resolveTurn(input: ResolveInput, depsOrTosser: ResolveDeps | Tos
     resolvedAt: input.now ?? Date.now(),
   };
   if (outcome) result.outcome = outcome;
-
-  // After-turn hooks see the session as it stands with this turn applied.
-  let wallet = input.wallet ? applyEffects(input.wallet, effects) : undefined;
-  const after: SessionLike = {
-    rules,
-    ...(wallet ? { wallet } : {}),
-    modeState: applyModeEffects(modeState, effects),
-    history: [...history, result],
-    fen: result.fenAfter,
-    turnNumber: input.turnNumber + 1,
-  };
-  const late = modules.flatMap((m) => m.afterTurn?.(after, result) ?? []);
-  if (late.length) {
-    effects.push(...late);
-    if (wallet) wallet = applyEffects(wallet, late);
-  }
-  if (wallet) result.walletAfter = wallet;
   return { ok: true, result };
 }
 
-/** Applies a resolved turn's effects to a session's wallet and mode state. */
-export function commitEffects<S extends { wallet?: Wallet; modeState: ModeState }>(state: S, effects: readonly TurnEffect[], walletAfter?: Wallet): S {
-  return {
-    ...state,
-    ...(walletAfter ? { wallet: walletAfter } : state.wallet ? { wallet: applyEffects(state.wallet, effects) } : {}),
-    modeState: applyModeEffects(state.modeState, effects),
-  };
-}
-
-/** Effects for a game that ended off the board (resign, abandon, timeout): open bets settle or void. */
-export function gameOverEffects(state: SessionLike, outcome: NonNullable<TurnResult['outcome']>): TurnEffect[] {
-  return activeModules(state.rules).flatMap((m) => m.onGameOver?.(state, outcome) ?? []);
+/** Mode state is derived from effects: an All-In declaration uses up that piece type. */
+export function applyModeEffects(state: ModeState, effects: readonly TurnEffect[]): ModeState {
+  let next = state;
+  for (const e of effects) {
+    if (e.kind === 'all_in') {
+      const used = next.allInsUsed ?? { w: [], b: [] };
+      next = { ...next, allInsUsed: { ...used, [e.color]: [...used[e.color], e.piece] } };
+    }
+  }
+  return next;
 }

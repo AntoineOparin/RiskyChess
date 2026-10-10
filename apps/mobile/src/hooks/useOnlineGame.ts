@@ -3,10 +3,10 @@ import { useShallow } from 'zustand/react/shallow';
 import type { MoveInput, TurnExtras } from '@risky-chess/shared';
 import { newSubmissionId } from '../lib/chess';
 import { newClientSeed } from '../lib/fairness';
+import { loadSeat } from '../net/seats';
 import { getSocket, request } from '../net/socket';
 import { useGameStore } from '../state/gameStore';
 import { logger } from '../lib/log';
-import type { BetOutcome, BetRequest } from '../modes/types';
 
 const SUBMIT_ATTEMPTS = 3;
 const log = logger('online');
@@ -40,7 +40,12 @@ export function useOnlineGame(gameId: string) {
     };
 
     const rejoin = async () => {
-      const res = await request('rejoin_game', { gameId });
+      const seat = await loadSeat(gameId);
+      if (!seat) {
+        log.warn('no stored seat for game', { gameId });
+        return st().set({ error: 'You are not seated in this game.' });
+      }
+      const res = await request('rejoin_game', { gameId, playerToken: seat.playerToken });
       if (res.ok) {
         log.info('rejoined', { gameId, color: res.data.color, turnNumber: res.data.session.turnNumber, status: res.data.session.status });
         st().setSession(res.data.session, res.data.color);
@@ -78,10 +83,8 @@ export function useOnlineGame(gameId: string) {
         mover: r.mover,
         pair: [r.moveA.lan, r.moveB?.lan ?? null],
         executed: r.executed.lan,
-        odds: r.odds.A,
         roll: r.coin?.roll,
-        effects: r.effects.map((e) => e.kind + ('reason' in e ? `:${e.reason}` : '')),
-        walletAfter: r.walletAfter,
+        effects: r.effects.map((e) => e.kind),
         applied,
       });
       if (applied === 'gap') {
@@ -91,16 +94,11 @@ export function useOnlineGame(gameId: string) {
     });
     socket.on('game_over', (p) => {
       if (!mine(p.gameId)) return;
-      log.info('game_over', { outcome: p.outcome, settled: p.effects?.length ?? 0, walletAfter: p.walletAfter });
-      st().applyGameOver(p.outcome, p);
+      log.info('game_over', { outcome: p.outcome });
+      st().applyGameOver(p.outcome);
     });
     socket.on('opponent_disconnected', (p) => mine(p.gameId) && st().setOpponentPresence(p.color, p.graceEndsAt));
     socket.on('opponent_reconnected', (p) => mine(p.gameId) && st().setOpponentPresence(p.color, null));
-    socket.on('bets_revealed', (p) => {
-      if (!mine(p.gameId)) return;
-      log.debug('bets_revealed', { w: p.bets.w?.length ?? 0, b: p.bets.b?.length ?? 0 });
-      st().applyBetsRevealed(p.bets);
-    });
     socket.on('error', (p) => log.error('server error event', p));
 
     if (socket.connected) onConnect();
@@ -108,7 +106,7 @@ export function useOnlineGame(gameId: string) {
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
-      for (const e of ['game_started', 'state_sync', 'turn_started', 'turn_resolved', 'game_over', 'opponent_disconnected', 'opponent_reconnected', 'bets_revealed', 'error'] as const) {
+      for (const e of ['game_started', 'state_sync', 'turn_started', 'turn_resolved', 'game_over', 'opponent_disconnected', 'opponent_reconnected', 'error'] as const) {
         socket.off(e);
       }
     };
@@ -122,7 +120,7 @@ export function useOnlineGame(gameId: string) {
       // One id across retries: the server dedupes, so a lost ack never double-resolves.
       // A fresh client seed per turn, kept across retries of the same submission.
       const payload = { gameId, turnNumber: s.turnNumber, clientSubmissionId: newSubmissionId(), moveA, moveB, extras: { ...extras, clientSeed: newClientSeed() } };
-      log.debug('submit', { turnNumber: payload.turnNumber, moveA: moveA, moveB: moveB, extras: payload.extras });
+      log.debug('submit', { turnNumber: payload.turnNumber, moveA, moveB, extras: payload.extras });
       let res = await request('submit_moves', payload);
       for (let i = 1; i < SUBMIT_ATTEMPTS && !res.ok && res.error === 'NETWORK'; i++) {
         log.warn('submit timed out; retrying', { attempt: i + 1, turnNumber: payload.turnNumber });
@@ -140,17 +138,6 @@ export function useOnlineGame(gameId: string) {
     [gameId],
   );
 
-  /** A sealed side bet; the server answers with a state_sync carrying the new wallet and bet. */
-  const placeBet = useCallback(
-    async (req: BetRequest): Promise<BetOutcome> => {
-      const res = await request('place_bet', { gameId, clientBetId: newSubmissionId(), ...req });
-      if (!res.ok) log.warn('place_bet rejected', { ...req, error: res.error, message: res.message });
-      else log.debug('bet placed', { kind: res.data.bet.kind, stake: res.data.bet.stake, payoutX100: res.data.bet.payoutX100 });
-      return res.ok ? { ok: true } : { ok: false, message: res.message };
-    },
-    [gameId],
-  );
-
   const resign = useCallback(async () => {
     const res = await request('resign', { gameId });
     if (!res.ok) {
@@ -159,5 +146,5 @@ export function useOnlineGame(gameId: string) {
     }
   }, [gameId]);
 
-  return { ...state, submit, resign, placeBet };
+  return { ...state, submit, resign };
 }

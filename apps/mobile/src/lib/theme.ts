@@ -13,17 +13,13 @@ export const colors = {
   target: 'rgba(20, 20, 20, 0.28)',
   danger: '#E5484D',
   success: '#46A758',
-  chip: '#E9C46A',
   border: '#343944',
 } as const;
 
-/** The chip glyph. Chips are play money only. */
-export const CHIP = '◎';
-
 export const slotColor = (slot: 'A' | 'B') => (slot === 'A' ? colors.slotA : colors.slotB);
 
-/** Money and status accents: green for gains, gold for balances, blue for info, red for losses. */
-export const accent = { green: '#2ED573', gold: colors.chip, blue: colors.slotB, red: colors.danger } as const;
+/** Status accents: green for good, gold for the house colour, blue for info, red for bad. */
+export const accent = { green: '#2ED573', gold: colors.slotA, blue: colors.slotB, red: colors.danger } as const;
 
 export const radius = { sm: 10, md: 12, lg: 18, pill: 999 } as const;
 

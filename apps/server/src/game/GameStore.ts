@@ -1,8 +1,10 @@
-import type { Ack, Color, GameSession, PropBet } from '@risky-chess/shared';
+import type { Ack, Color, GameSession } from '@risky-chess/shared';
 
 /** Server-side record; only `session` is ever sent to clients. */
 export interface GameRecord {
   session: GameSession;
+  /** Each seat's credential: the only thing needed to rejoin it. */
+  tokens: Partial<Record<Color, string>>;
   /** Socket currently bound to each seat, so a stale socket's disconnect is ignored. */
   connections: Partial<Record<Color, string>>;
   /** When each disconnected seat forfeits (pvp only). */
@@ -14,8 +16,6 @@ export interface GameRecord {
    * start. Never sent until the turn resolves, never logged, deleted once revealed.
    */
   turnSeeds: Map<number, string>;
-  /** `${color}:${clientBetId}` → ack already returned, so a retried placement never debits twice. */
-  betAcks: Map<string, Ack<{ bet: PropBet }>>;
 }
 
 export interface GameStore {

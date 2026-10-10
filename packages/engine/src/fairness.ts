@@ -19,8 +19,6 @@ import type { Rng } from './rng';
  *   sees the pair cannot steer the coin toward the move it prefers.
  * - The client seed is chosen after the commitment, so the server cannot
  *   precompute a table of seeds with known rolls.
- * - Odds come from the submission (stakes, the market line), known only after
- *   the commitment, so the server cannot pick a seed to suit the odds.
  * - A client cannot bias the roll: it never sees the seed before submitting,
  *   and HMAC output is unpredictable without the key.
  * - Seeds are never logged and are deleted once revealed.

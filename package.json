@@ -4,9 +4,10 @@
   "packageManager": "pnpm@10.34.6",
   "scripts": {
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "node scripts/check-cycles.mjs && pnpm -r test",
     "dev:server": "pnpm --filter @risky-chess/server dev",
-    "dev:mobile": "pnpm --filter @risky-chess/mobile start"
+    "dev:mobile": "pnpm --filter @risky-chess/mobile start",
+    "check:cycles": "node scripts/check-cycles.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

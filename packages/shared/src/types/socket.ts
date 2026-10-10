@@ -1,6 +1,7 @@
 import type { Color } from './moves';
 import type { GameMode, GameOutcome, GameSession, GameStatus, TurnResult } from './game';
 import type { MoveSubmission } from './moves';
+import type { GameRules } from './modes';
 
 export type ErrorCode =
   | 'INVALID_PAYLOAD'
@@ -13,7 +14,11 @@ export type ErrorCode =
   | 'GAME_FULL'
   | 'GAME_OVER'
   | 'GAME_NOT_ACTIVE'
-  | 'UNAUTHORIZED';
+  | 'UNAUTHORIZED'
+  | 'MODE_DISABLED'
+  | 'ALL_IN_USED'
+  | 'ALL_IN_INVALID'
+  | 'INTERNAL';
 
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: ErrorCode; message: string };
 export type AckFn<T> = (res: Ack<T>) => void;
@@ -22,7 +27,10 @@ export interface CreateGamePayload {
   mode: GameMode;
   displayName: string;
   color?: Color | 'random';
+  /** Defaults to classic. */
+  rules?: GameRules;
 }
+/** A seat and the token that proves it; the token is the only credential for rejoining. */
 export interface SeatGrant {
   gameId: string;
   playerId: string;

@@ -1,4 +1,5 @@
 import type { Color, CoinToss, ResolvedMove } from './moves';
+import type { GameRules, ModeState, Odds, TurnEffect } from './modes';
 
 export type GameMode = 'pvp' | 'bot';
 
@@ -24,11 +25,17 @@ export interface TurnResult {
   mover: Color;
   fenBefore: string;
   moveA: ResolvedMove;
-  /** null on forced turns. */
+  /** null on forced turns and All-In declarations. */
   moveB: ResolvedMove | null;
   /** true → only one legal move existed, no toss happened. */
   forced: boolean;
   coin: CoinToss | null;
+  /** The odds the coin was tossed at (5000 = fair; also 5000 on forced turns). */
+  odds: Odds;
+  /**
+   * The move that was played. On a lost All-In nothing is played: this is the
+   * declared capture, and the `all_in` effect (won: false) says it was voided.
+   */
   executed: ResolvedMove;
   fenAfter: string;
   /** Whether the side to move in fenAfter is in check. */
@@ -36,6 +43,8 @@ export interface TurnResult {
   /** Evaluated after the executed move is applied. */
   status: GameStatus;
   outcome?: GameOutcome;
+  /** All-In results, in the order they happened. */
+  effects: TurnEffect[];
   resolvedAt: number;
 }
 
@@ -55,6 +64,10 @@ export interface GameSession {
   startFen: string;
   /** Authoritative current position. */
   fen: string;
+  /**
+   * Side to move. Always derived from `fen` (never flipped), so an All-In bonus
+   * ply gives the same seat two turns in a row.
+   */
   turn: Color;
   /** Increments per resolved turn (ply), starts at 1. */
   turnNumber: number;
@@ -63,6 +76,10 @@ export interface GameSession {
   graceEndsAt?: number;
   history: TurnResult[];
   outcome?: GameOutcome;
+  rules: GameRules;
+  modeState: ModeState;
+  /** Provably Fair: sha256 of the current turn's server seed, for rejoining clients. */
+  pendingCommitment?: string;
   createdAt: number;
   updatedAt: number;
 }

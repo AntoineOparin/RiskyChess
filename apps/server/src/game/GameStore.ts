@@ -3,6 +3,7 @@ import type { Ack, Color, GameSession } from '@risky-chess/shared';
 /** Server-side record; only `session` is ever sent to clients. */
 export interface GameRecord {
   session: GameSession;
+  /** Each seat's credential: the only thing needed to rejoin it. */
   tokens: Partial<Record<Color, string>>;
   /** Socket currently bound to each seat, so a stale socket's disconnect is ignored. */
   connections: Partial<Record<Color, string>>;
@@ -10,6 +11,11 @@ export interface GameRecord {
   graceDeadlines: Partial<Record<Color, number>>;
   /** clientSubmissionId → ack already returned, for idempotent retries. */
   submissions: Map<string, Ack<{ accepted: true }>>;
+  /**
+   * Provably Fair: turnNumber → secret server seed (hex), committed at turn
+   * start. Never sent until the turn resolves, never logged, deleted once revealed.
+   */
+  turnSeeds: Map<number, string>;
 }
 
 export interface GameStore {

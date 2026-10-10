@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { logger } from '../lib/log';
+import { applyModeEffects, sideToMove } from '@risky-chess/engine';
 import type { Color, GameOutcome, GameSession, TurnResult, TurnStartedPayload } from '@risky-chess/shared';
 
 interface OnlineGameState {
@@ -21,6 +23,8 @@ interface OnlineGameState {
 
 const initial = { session: null, color: null, connected: false, submitting: false, error: null, opponentGraceEndsAt: null };
 
+const log = logger('store');
+
 /** Mirror of the server's session. The server FEN always wins. */
 export const useGameStore = create<OnlineGameState>()((set, get) => ({
   ...initial,
@@ -39,14 +43,20 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
 
   applyTurnResult: (r) => {
     const s = get().session;
-    if (!s || r.turnNumber < s.turnNumber) return 'duplicate';
+    if (!s || r.turnNumber < s.turnNumber) {
+      log.debug('ignored duplicate turn result', { got: r.turnNumber, have: s?.turnNumber });
+      return 'duplicate';
+    }
     if (r.turnNumber > s.turnNumber) return 'gap';
+    if (r.fenBefore !== s.fen) log.warn('turn result starts from a different position than ours', { turnNumber: r.turnNumber, ours: s.fen, theirs: r.fenBefore });
     set({
       session: {
         ...s,
         fen: r.fenAfter,
-        turn: s.turn === 'w' ? 'b' : 'w',
+        // Derived from the position, never flipped: an All-In bonus ply keeps the same side to move.
+        turn: sideToMove(r.fenAfter),
         turnNumber: s.turnNumber + 1,
+        modeState: applyModeEffects(s.modeState, r.effects ?? []),
         history: [...s.history, r],
         status: r.status,
         ...(r.outcome ? { outcome: r.outcome } : {}),
@@ -63,7 +73,8 @@ export const useGameStore = create<OnlineGameState>()((set, get) => ({
 
   applyGameOver: (outcome) => {
     const s = get().session;
-    if (s) set({ session: { ...s, status: 'finished', outcome }, opponentGraceEndsAt: null, submitting: false });
+    if (!s) return;
+    set({ session: { ...s, status: 'finished', outcome }, opponentGraceEndsAt: null, submitting: false });
   },
 
   setOpponentPresence: (color, graceEndsAt) => {

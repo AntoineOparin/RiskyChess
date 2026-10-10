@@ -2,7 +2,7 @@ import { StyleSheet, Text } from 'react-native';
 import type { Color, PieceSymbol } from '@risky-chess/shared';
 
 // Filled glyphs for both sides, recolored; U+FE0E keeps iOS from rendering emoji.
-const GLYPHS: Record<PieceSymbol, string> = {
+export const GLYPHS: Record<PieceSymbol, string> = {
   k: '♚︎',
   q: '♛︎',
   r: '♜︎',

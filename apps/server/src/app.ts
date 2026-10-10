@@ -21,11 +21,7 @@ export function createApp(opts: Partial<GameManagerOptions> = {}): App {
 
   const http = createServer(app);
   const io: GameServer = new Server(http, { cors: { origin: '*' } });
-  const manager = new GameManager(
-    new InMemoryGameStore(),
-    (gameId, event, ...args) => io.to(room(gameId)).emit(event, ...args),
-    opts,
-  );
+  const manager = new GameManager(new InMemoryGameStore(), (gameId, event, ...args) => io.to(room(gameId)).emit(event, ...args), opts);
   registerHandlers(io, manager);
 
   const sweep = setInterval(() => manager.sweep(), 10 * 60 * 1000);

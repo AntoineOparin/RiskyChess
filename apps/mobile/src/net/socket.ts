@@ -10,11 +10,12 @@ const ACK_TIMEOUT_MS = 8000;
 /**
  * EXPO_PUBLIC_SERVER_URL wins; otherwise reuse the dev machine's host from
  * Metro so simulators and devices on the same LAN reach the local server.
+ * On the web the page's own host is the dev machine.
  */
 function resolveServerUrl(): string {
   const explicit = process.env.EXPO_PUBLIC_SERVER_URL;
   if (explicit) return explicit;
-  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  const host = Constants.expoConfig?.hostUri?.split(':')[0] ?? (typeof location !== 'undefined' ? location.hostname : undefined);
   return `http://${host ?? 'localhost'}:${SERVER_PORT}`;
 }
 

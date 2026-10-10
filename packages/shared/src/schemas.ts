@@ -11,18 +11,37 @@ export const moveInputSchema = z.object({
   promotion: z.enum(['q', 'r', 'b', 'n']).optional(),
 });
 
+export const modeIdSchema = z.enum(['all_in']);
+
+export const gameRulesSchema = z.object({
+  modes: z
+    .array(modeIdSchema)
+    .max(1)
+    .refine((m) => new Set(m).size === m.length, 'Duplicate mode'),
+});
+
+export const turnExtrasSchema = z.object({
+  allIn: z.boolean().optional(),
+  clientSeed: z
+    .string()
+    .regex(/^[0-9a-f]{8,128}$/)
+    .optional(),
+});
+
 export const moveSubmissionSchema = z.object({
   gameId: gameIdSchema,
   turnNumber: z.number().int().positive(),
   clientSubmissionId: z.string().min(1).max(64),
   moveA: moveInputSchema,
   moveB: moveInputSchema.nullable(),
+  extras: turnExtrasSchema.optional(),
 });
 
 export const createGameSchema = z.object({
   mode: z.enum(['pvp', 'bot']),
   displayName: displayNameSchema,
   color: z.enum(['w', 'b', 'random']).optional(),
+  rules: gameRulesSchema.optional(),
 });
 
 export const joinGameSchema = z.object({ gameId: gameIdSchema, displayName: displayNameSchema });

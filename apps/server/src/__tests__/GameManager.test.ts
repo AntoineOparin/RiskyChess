@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MoveInput, MoveSubmission, ServerToClientEvents } from '@risky-chess/shared';
 import { seededRng } from '@risky-chess/engine';
-import { GameManager, type Emit } from '../game/GameManager';
+import { GameManager, type Emit, type GameManagerOptions } from '../game/GameManager';
 import { InMemoryGameStore } from '../game/GameStore';
 
 type Event = { gameId: string; event: keyof ServerToClientEvents; payload: unknown };
@@ -10,15 +10,20 @@ const m = (lan: string): MoveInput => ({ from: lan.slice(0, 2), to: lan.slice(2,
 const flush = () => Promise.resolve();
 let subCounter = 0;
 
-function setup(opts: { graceMs?: number } = {}) {
+function setup(opts: Partial<GameManagerOptions> = {}) {
   const events: Event[] = [];
   const emit: Emit = (gameId, event, ...args) => events.push({ gameId, event, payload: args[0] });
-  const manager = new GameManager(new InMemoryGameStore(), emit, {
-    tosser: () => ({ chosen: 'A', method: 'local' }),
-    rng: seededRng(3),
-    botThinkMs: { min: 10, max: 10 },
-    ...opts,
-  });
+  const store = new InMemoryGameStore();
+  const manager = new GameManager(
+    store,
+    emit,
+    {
+      tosser: () => ({ chosen: 'A', method: 'local' }),
+      rng: seededRng(3),
+      botThinkMs: { min: 10, max: 10 },
+      ...opts,
+    },
+  );
   const of = (name: keyof ServerToClientEvents) => events.filter((e) => e.event === name);
   const state = (id: string) => {
     const r = manager.getState(id);
@@ -32,7 +37,7 @@ function setup(opts: { graceMs?: number } = {}) {
     moveA: m(a),
     moveB: b ? m(b) : null,
   });
-  return { manager, events, of, state, sub };
+  return { manager, store, events, of, state, sub };
 }
 
 async function startPvp(t: ReturnType<typeof setup>) {
